@@ -1,0 +1,921 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Parts Orders</title>
+<meta name="theme-color" content="#0f1720">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#0f1720;--card:#18222e;--card2:#1e2a38;--line:#2a3747;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--red:#ef4444;--green:#22c55e;--blue:#3b82f6;--purple:#a78bfa}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 12px 6px;border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:8px}
+h1{font-size:18px;margin:0;flex:1;letter-spacing:.2px}
+h1 span{color:var(--acc)}
+.sync{font-size:11px;color:var(--mut);white-space:nowrap}
+.sync.ok{color:var(--green)}.sync.bad{color:var(--red)}
+.icon{background:var(--card);border:1px solid var(--line);border-radius:10px;width:38px;height:38px;cursor:pointer;flex:none}
+.icon.on{border-color:var(--acc);color:var(--acc)}
+.searchrow{display:flex;gap:8px;margin-top:8px}
+.searchrow input{flex:1;min-width:0}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc)}
+input[type=date]{color-scheme:dark}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.filters label{font-size:11px;color:var(--mut);display:block;margin-bottom:2px}
+.filters .btns{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.hidden{display:none!important}
+.views{display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:4px;scrollbar-width:none}
+.views::-webkit-scrollbar{display:none}
+.views button{flex:none;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;font-size:13px}
+.views button b{color:var(--mut);font-weight:600;margin-left:3px}
+.views button.on{background:var(--acc);border-color:var(--acc);color:#111}
+.views button.on b{color:#111}
+.views button.warn b{color:var(--red)}
+.views button.on.warn b{color:#111}
+.banner{margin:10px 12px 0;padding:10px 12px;border-radius:10px;background:#3a2a07;border:1px solid var(--acc);color:#fde68a;cursor:pointer;font-size:14px}
+main{padding:10px 12px 100px;max-width:900px;margin:0 auto}
+.hint{color:var(--mut);font-size:13px;margin:4px 2px 10px}
+.hint a{color:var(--acc);cursor:pointer;text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.card.st0{border-left-color:var(--purple)}.card.st1{border-left-color:var(--blue)}.card.st2{border-left-color:var(--red)}
+.card.st3{border-left-color:var(--green)}.card.st4,.card.st5,.card.st6{border-left-color:#475569;opacity:.75}
+.card.od{border-color:var(--red)}
+.card.dmg{border-left-color:var(--red);opacity:1;background:#221a1e}
+.row1{display:flex;gap:8px;align-items:flex-start}
+.desc{flex:1;font-weight:600}
+.pill{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap;background:var(--card2);border:1px solid var(--line)}
+.pill.s0{color:var(--purple)}.pill.s1{color:var(--blue)}.pill.s2{color:var(--red)}.pill.s3{color:var(--green)}.pill.s4,.pill.s5,.pill.s6{color:var(--mut)}
+.dtag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;background:var(--red);color:#fff;margin-top:5px}
+.dtag.res{background:#334155;color:var(--mut)}
+.meta{color:var(--mut);font-size:13px;margin-top:2px}
+.pn{color:var(--text);font-family:ui-monospace,Consolas,monospace}
+.reg{background:#facc15;color:#111;font-weight:700;padding:0 5px;border-radius:3px;font-size:12px}
+.dates{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut);margin-top:6px}
+.red{color:var(--red)!important;font-weight:600}.amber{color:var(--acc)!important;font-weight:600}
+.qa{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.qa button{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.empty{text-align:center;color:var(--mut);padding:40px 10px}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;border:none;background:var(--acc);color:#111;font-size:30px;box-shadow:0 6px 20px #0008;cursor:pointer;z-index:6}
+.btn{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 14px;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#111;font-weight:700}
+.btn.dan{color:var(--red);border-color:#5b2323}
+.btn:disabled{opacity:.5}
+dialog{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:0;width:min(640px,96vw);max-height:92vh}
+dialog::backdrop{background:#000a}
+.dh{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
+.dh h2{font-size:17px;margin:0;flex:1}
+.fb{padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fb label{font-size:12px;color:var(--mut);display:block;margin-bottom:3px}
+.full{grid-column:1/-1}
+.sec{grid-column:1/-1;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--acc);margin-top:6px;border-top:1px solid var(--line);padding-top:10px}
+.sec.dsec{color:var(--red)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chips button{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.chk input{width:20px;height:20px;flex:none}
+.chk label{margin:0!important;color:var(--text)!important;font-size:14px!important}
+.df{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--bg);z-index:2}
+.df .sp{flex:1}
+.stamp{grid-column:1/-1;font-size:11px;color:var(--mut)}
+.pnwrap{position:relative}
+.pnhint{font-size:12px;margin-top:4px;color:var(--mut);min-height:16px}
+.pnhint.ok{color:var(--green)}.pnhint.warn{color:var(--acc)}
+.pnhint button{background:var(--acc);color:#111;border:none;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px}
+.sug{position:absolute;left:0;right:0;top:44px;background:var(--card2);border:1px solid var(--acc);border-radius:10px;z-index:3;max-height:260px;overflow:auto;box-shadow:0 8px 20px #000a}
+.sug div{padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+.sug div:last-child{border-bottom:none}
+.sug div:hover,.sug div.on{background:#2b3a4d}
+.sug .c{font-family:ui-monospace,Consolas,monospace;color:var(--acc);margin-right:8px}
+.sug .l{color:var(--mut);font-size:11px;margin-left:6px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px}
+.pgrid img,.padd{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer}
+.padd{display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:12px;color:var(--mut);border-style:dashed;gap:2px}
+.padd b{font-size:24px;color:var(--acc);font-weight:400}
+.fu{border-left:2px solid var(--line);padding:2px 0 8px 10px;margin-left:4px}
+.fu .w{font-size:11px;color:var(--mut)}
+.fu .n{white-space:pre-wrap;font-size:14px}
+.furow{display:flex;gap:8px;align-items:flex-start}
+.furow textarea{flex:1}
+#pv{width:min(900px,98vw);background:#000}
+#pv img{display:block;max-width:100%;max-height:78vh;margin:0 auto}
+.pvbar{display:flex;gap:8px;padding:10px;justify-content:space-between}
+.catinfo{font-size:14px;line-height:1.6}
+.catinfo .mut{color:var(--mut);font-size:12px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1f2937;border:1px solid var(--line);padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90vw;text-align:center}
+#toast.show{opacity:1}#toast.err{border-color:var(--red)}
+@media(max-width:420px){.fb{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Parts <span>Orders</span></h1>
+    <span id="sync" class="sync">…</span>
+    <button id="catBtn" class="icon" title="Price file">📄</button>
+    <button id="bellBtn" class="icon" title="Phone notifications">🔔</button>
+    <button id="refreshBtn" class="icon" title="Refresh">⟳</button>
+  </div>
+  <div class="searchrow">
+    <input id="q" type="search" placeholder="Search part no, description, reg, PO, supplier…" autocomplete="off">
+    <button id="filterBtn" class="icon" title="Filters">⚙</button>
+  </div>
+  <div id="filters" class="filters hidden">
+    <div><label>Status</label><select id="fStatus"><option value="">Any status</option></select></div>
+    <div><label>Supplier</label><select id="fSupplier"><option value="">Any supplier</option></select></div>
+    <div><label>Date type</label><select id="fDateField">
+      <option value="ordered_date">Ordered</option><option value="eta_date">ETA</option>
+      <option value="received_date">Received</option><option value="reminder_date">Reminder</option>
+      <option value="damaged_date">Damaged</option><option value="created_at">Created</option></select></div>
+    <div><label>Sort</label><select id="fSort">
+      <option value="updated_at:d">Last updated</option><option value="created_at:d">Newest added</option>
+      <option value="eta_date:a">ETA (soonest)</option><option value="reminder_date:a">Reminder (soonest)</option>
+      <option value="ordered_date:d">Order date (newest)</option><option value="supplier:a">Supplier A–Z</option>
+      <option value="vehicle_reg:a">Reg A–Z</option></select></div>
+    <div><label>From</label><input type="date" id="fFrom"></div>
+    <div><label>To</label><input type="date" id="fTo"></div>
+    <div class="btns"><button id="clearF" class="btn">Clear filters</button><button id="csvBtn" class="btn">Export CSV</button></div>
+  </div>
+  <nav id="views" class="views">
+    <button data-v="open">Open<b id="c_open"></b></button>
+    <button data-v="overdue" class="warn">Overdue<b id="c_overdue"></b></button>
+    <button data-v="reminders" class="warn">Reminders due<b id="c_reminders"></b></button>
+    <button data-v="damaged" class="warn">Damaged<b id="c_damaged"></b></button>
+    <button data-v="arrived">Arrived<b id="c_arrived"></b></button>
+    <button data-v="upcoming">Upcoming reminders<b id="c_upcoming"></b></button>
+    <button data-v="closed">Closed<b id="c_closed"></b></button>
+    <button data-v="all">All<b id="c_all"></b></button>
+  </nav>
+</header>
+<div id="banner" class="banner hidden"></div>
+<main id="list"></main>
+<button id="addBtn" class="fab" title="New order">＋</button>
+
+<dialog id="dlg">
+  <form id="frm" autocomplete="off">
+    <div class="dh"><h2 id="dlgTitle">New order</h2><button type="button" class="icon" id="xBtn">✕</button></div>
+    <div class="fb">
+      <div class="pnwrap"><label>Part number</label><input name="part_number" id="pnIn" autocapitalize="characters" spellcheck="false">
+        <div id="pnSug" class="sug hidden"></div><div id="pnHint" class="pnhint"></div></div>
+      <div><label>Qty</label><input name="qty" type="number" step="any" inputmode="decimal"></div>
+      <div class="full"><label>Description *</label><input name="description" id="descIn" required></div>
+      <div><label>Supplier</label><input name="supplier" list="supList"><datalist id="supList"></datalist></div>
+      <div><label>Order ref / PO</label><input name="order_ref"></div>
+      <div><label>Status</label><select name="status" id="statusSel"></select></div>
+      <div><label>Cost (€)</label><input name="cost" type="number" step="0.01" inputmode="decimal"></div>
+
+      <div class="sec">Customer / job</div>
+      <div><label>Vehicle reg</label><input name="vehicle_reg" style="text-transform:uppercase"></div>
+      <div><label>Customer</label><input name="customer"></div>
+      <div><label>Job / WIP no.</label><input name="job_ref"></div>
+      <div><label>Ordered by</label><input name="ordered_by"></div>
+
+      <div class="sec">Dates</div>
+      <div><label>Ordered</label><input name="ordered_date" type="date"></div>
+      <div><label>ETA</label><input name="eta_date" type="date"></div>
+      <div><label>Received</label><input name="received_date" type="date"></div>
+      <div></div>
+
+      <div class="sec dsec" id="dmgSec">Damage</div>
+      <div class="full chk"><input type="checkbox" name="damaged" id="dmgChk"><label for="dmgChk">Part arrived damaged</label></div>
+      <div id="dmgFields" class="full hidden" style="display:grid;grid-template-columns:inherit;gap:10px">
+        <div class="fb" style="padding:0">
+          <div><label>Damage status</label><select name="damage_status" id="dmgStatus"></select></div>
+          <div><label>Claim / return ref</label><input name="damage_ref"></div>
+          <div><label>Date found</label><input name="damaged_date" type="date"></div>
+          <div></div>
+          <div class="full"><label>Damage details</label><textarea name="damage_notes" rows="2" placeholder="What's damaged, packaging condition, who delivered…"></textarea></div>
+        </div>
+      </div>
+
+      <div class="sec">Photos</div>
+      <div class="full">
+        <div class="pgrid" id="photoGrid"></div>
+        <input type="file" id="photoIn" accept="image/*" multiple hidden>
+      </div>
+
+      <div class="sec">Reminder</div>
+      <div><label>Remind me on</label><input name="reminder_date" type="date" id="remDate">
+        <div class="chips" id="remChips"><button type="button" data-rd="1">+1 day</button><button type="button" data-rd="3">+3 days</button><button type="button" data-rd="7">+1 week</button><button type="button" data-rd="eta">On ETA</button><button type="button" data-rd="x">Clear</button></div></div>
+      <div><label>Reminder note</label><input name="reminder_note" placeholder="e.g. chase supplier"></div>
+      <div class="full chk"><input type="checkbox" name="reminder_done" id="remDone"><label for="remDone">Reminder dealt with</label></div>
+
+      <div class="sec">Follow-ups</div>
+      <div class="full" id="fuList"></div>
+      <div class="full">
+        <div class="furow"><textarea id="fuNote" rows="2" placeholder="Log a follow-up: rang supplier, claim sent, credit promised…"></textarea></div>
+        <div class="chips" id="fuChips" style="align-items:center">
+          <span style="font-size:12px;color:var(--mut)">Next reminder:</span>
+          <button type="button" data-fu="">None</button><button type="button" data-fu="1">+1 day</button><button type="button" data-fu="3">+3 days</button><button type="button" data-fu="7">+1 week</button>
+          <span class="sp" style="flex:1"></span>
+          <button type="button" id="fuAdd" class="btn pri" style="padding:6px 12px;border-radius:8px">Add follow-up</button>
+        </div>
+      </div>
+
+      <div class="full"><label>Notes</label><textarea name="notes" rows="3"></textarea></div>
+      <div class="stamp" id="stamp"></div>
+    </div>
+    <div class="df">
+      <button type="button" class="btn dan" id="delBtn">Delete</button>
+      <button type="button" class="btn" id="dupBtn">Duplicate</button>
+      <button type="button" class="btn" id="icsBtn">📅 Calendar</button>
+      <span class="sp"></span>
+      <button type="submit" class="btn pri" id="saveBtn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pv">
+  <img id="pvImg" alt="">
+  <div class="pvbar">
+    <button type="button" class="btn dan" id="pvDel">Delete photo</button>
+    <a id="pvOpen" class="btn" target="_blank" rel="noopener" style="text-decoration:none">Open full size</a>
+    <button type="button" class="btn" id="pvClose">Close</button>
+  </div>
+</dialog>
+
+<dialog id="catDlg">
+  <div class="dh"><h2>Price file</h2><button type="button" class="icon" id="catX">✕</button></div>
+  <div class="fb">
+    <div class="full catinfo" id="catInfo">Loading…</div>
+    <div class="full catinfo mut">Import a CSV with columns like <b>Code / Part No</b>, <b>Description</b>, and optionally <b>Location</b>, <b>Frn</b>, <b>Price</b>. Importing a franchise (e.g. CIT) replaces only that franchise's parts. Shared with everyone using the app.</div>
+    <div class="full" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn pri" id="catImport">Import CSV…</button>
+      <button type="button" class="btn" id="catReload">Re-download</button>
+      <button type="button" class="btn dan" id="catClear">Clear all</button>
+      <input type="file" id="catFile" accept=".csv,text/csv" hidden>
+    </div>
+  </div>
+</dialog>
+<div id="toast"></div>
+
+<script>
+// ===== CONFIG =====
+const SUPABASE_URL = 'https://voyliwyjosibytursdui.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_4zQ2txtdephS6paf1RzRIA_qhHstBX0';
+const T = 'parts_orders';
+const BUCKET = 'parts-orders';
+// ==================
+
+const STATUSES = ['To order','Ordered','Back order','Arrived','Collected','Returned','Cancelled'];
+const OPEN = ['To order','Ordered','Back order'];
+const CLOSED = ['Collected','Returned','Cancelled'];
+const DMG_STATUSES = ['Reported','Claim submitted','Replacement ordered','Awaiting credit','Resolved'];
+const DMG_NOTE = 'Follow up damaged part';
+const FIELDS = ['description','part_number','qty','supplier','order_ref','status','cost','vehicle_reg','customer','job_ref','ordered_by','ordered_date','eta_date','received_date','damaged','damage_status','damage_ref','damaged_date','damage_notes','reminder_date','reminder_note','reminder_done','notes'];
+const BOOLS = ['damaged','reminder_done'];
+const SEARCH_FIELDS = ['part_number','description','supplier','order_ref','customer','vehicle_reg','job_ref','notes','reminder_note','ordered_by','status','damage_status','damage_ref','damage_notes'];
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+const ls = {get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const today = () => new Date().toLocaleDateString('en-CA');
+const addDays = (n, base) => { const d = base ? new Date(base + 'T12:00:00') : new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = d => { if (!d) return ''; const x = new Date(d.length === 10 ? d + 'T12:00:00' : d); const o = {day:'numeric',month:'short'}; if (x.getFullYear() !== new Date().getFullYear()) o.year = '2-digit'; return x.toLocaleDateString('en-IE', o); };
+const fmtDT = d => new Date(d).toLocaleString('en-IE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+const compact = s => s.replace(/[\s\-\/.]/g, '');
+const photoUrl = p => sb.storage.from(BUCKET).getPublicUrl(p).data.publicUrl;
+
+// ---- tiny IndexedDB key/value (price file cache – too big for localStorage) ----
+const idb = {
+  _db: null,
+  open() { if (this._db) return Promise.resolve(this._db); return new Promise((res, rej) => { const r = indexedDB.open('parts-orders', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(this._db = r.result); r.onerror = () => rej(r.error); }); },
+  async get(k) { try { const db = await this.open(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch (e) { return undefined; } },
+  async set(k, v) { try { const db = await this.open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch (e) { console.warn(e); } }
+};
+
+// CATALOG-START (pure functions – no DOM)
+// Key ignores case, punctuation and leading zeros so Excel-mangled codes still match (0204.53 = 204.53 = 20453)
+const catKey = s => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+function parseCsv(text) {
+  const out = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n') { row.push(f); out.push(row); row = []; f = ''; }
+    else if (c !== '\r') f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); out.push(row); }
+  return out;
+}
+function csvToCatalog(text, fallbackFrn) {
+  const rows = parseCsv(text.replace(/^\ufeff/, ''));
+  if (!rows.length) throw new Error('Empty file');
+  const h = rows[0].map(x => x.trim().toLowerCase());
+  const find = (...names) => h.findIndex(x => names.some(n => x === n || x.replace(/[^a-z]/g, '') === n.replace(/[^a-z]/g, '')));
+  const iC = find('code','part','part no','part number','partno','part_number','sku','item','stock code');
+  const iD = find('description','desc','part description','name');
+  const iL = find('location','loc','bin');
+  const iF = find('frn','franchise','make','brand');
+  const iP = find('price','retail','retail price','list price','rrp','trade','trade price','cost');
+  if (iC < 0 || iD < 0) throw new Error('Could not find Code and Description columns');
+  const items = []; let skipped = 0;
+  for (let r = 1; r < rows.length; r++) {
+    const x = rows[r]; const code = (x[iC] || '').trim(), desc = (x[iD] || '').trim();
+    if (!code || !desc) { skipped++; continue; }
+    if (/^\d+(\.\d+)?E[+-]\d+$/i.test(code)) { skipped++; continue; } // destroyed by Excel (1.97E+03)
+    const price = iP > -1 ? parseFloat(String(x[iP] || '').replace(/[^0-9.\-]/g, '')) : NaN;
+    items.push([code, desc, iL > -1 ? (x[iL] || '').trim() : '', (iF > -1 ? (x[iF] || '').trim() : '') || fallbackFrn || '', isNaN(price) ? null : price]);
+  }
+  return { items, skipped };
+}
+function buildIndex(items) {
+  const map = new Map(), keys = [];
+  items.forEach((it, i) => { const k = catKey(it[0]); if (!k) return; if (!map.has(k)) { map.set(k, []); keys.push(k); } map.get(k).push(i); });
+  keys.sort();
+  return { map, keys };
+}
+function catLookup(cat, idx, input) {
+  const k = catKey(input); if (!k || !idx) return [];
+  const hits = (idx.map.get(k) || []).map(i => cat.items[i]);
+  const up = String(input).toUpperCase().trim();
+  return hits.sort((a, b) => (b[0].toUpperCase() === up) - (a[0].toUpperCase() === up));
+}
+function catSuggest(cat, idx, input, limit) {
+  const k = catKey(input); if (!k || k.length < 3 || !idx) return [];
+  let lo = 0, hi = idx.keys.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (idx.keys[m] < k) lo = m + 1; else hi = m; }
+  const out = [];
+  for (let i = lo; i < idx.keys.length && out.length < limit && idx.keys[i].startsWith(k); i++) for (const j of idx.map.get(idx.keys[i])) { out.push(cat.items[j]); if (out.length >= limit) break; }
+  return out;
+}
+const supersededBy = desc => { const m = /^NOW\s+([A-Z0-9.\-\/]+)/i.exec(desc || ''); return m ? m[1] : null; };
+// CATALOG-END
+
+let rows = [];
+let state = Object.assign({view:'open', q:'', status:'', supplier:'', dateField:'ordered_date', from:'', to:'', sort:'updated_at:d'}, ls.get('po_state', {}));
+let editing = null;
+let loading = false;
+let catalog = null, catIdx = null;
+let autoDesc = '';
+let fuNext = '';
+let pvPath = null;
+
+const urlView = new URLSearchParams(location.search).get('view');
+if (urlView) state.view = urlView;
+
+// ---- helpers ----
+const isOverdue = r => OPEN.includes(r.status) && r.eta_date && r.eta_date < today();
+const isRemDue = r => r.reminder_date && !r.reminder_done && r.reminder_date <= today();
+const isRemUpcoming = r => r.reminder_date && !r.reminder_done && r.reminder_date > today();
+const isDamagedOpen = r => r.damaged && r.damage_status !== 'Resolved';
+const VIEWS = {
+  open: r => OPEN.includes(r.status),
+  overdue: isOverdue,
+  reminders: isRemDue,
+  damaged: isDamagedOpen,
+  arrived: r => r.status === 'Arrived',
+  upcoming: isRemUpcoming,
+  closed: r => CLOSED.includes(r.status),
+  all: () => true
+};
+
+function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.className = '', err ? 4500 : 2200); }
+function setSync(txt, cls) { const s = $('sync'); s.textContent = txt; s.className = 'sync ' + (cls || ''); }
+function saveState() { ls.set('po_state', state); }
+function cache() { ls.set('po_cache', rows); }
+const latest = id => rows.find(r => r.id === id);
+
+// ---- data ----
+async function load(silent) {
+  if (loading) return; loading = true;
+  if (!silent) setSync('Loading…');
+  try {
+    let all = [], from = 0; const size = 1000;
+    while (true) {
+      const { data, error } = await sb.from(T).select('*').order('id').range(from, from + size - 1);
+      if (error) throw error;
+      all = all.concat(data);
+      if (data.length < size) break;
+      from += size;
+    }
+    rows = all; cache();
+    setSync('Synced ' + new Date().toLocaleTimeString('en-IE', {hour:'2-digit', minute:'2-digit'}), 'ok');
+  } catch (e) {
+    console.error(e);
+    rows = ls.get('po_cache', rows);
+    setSync('Offline – cached', 'bad');
+    if (!silent) toast('Could not reach database: ' + (e.message || e), true);
+  }
+  loading = false;
+  refreshSuppliers(); render(); checkReminders();
+}
+
+function clean(patch) {
+  const out = {};
+  for (const k of Object.keys(patch)) {
+    let v = patch[k];
+    if (typeof v === 'string') { v = v.trim(); if (v === '') v = null; }
+    if ((k === 'qty' || k === 'cost') && v != null) v = Number(v);
+    if (k === 'vehicle_reg' && v) v = v.toUpperCase();
+    if (BOOLS.includes(k)) v = !!v;
+    out[k] = v;
+  }
+  return out;
+}
+
+function sideEffects(patch, base) {
+  const get = k => (k in patch ? patch[k] : base?.[k]);
+  if (patch.status === 'Ordered' && !get('ordered_date')) patch.ordered_date = today();
+  if (patch.status === 'Arrived' && !get('received_date')) patch.received_date = today();
+  // newly marked damaged → defaults + follow-up reminder in 2 days
+  if (patch.damaged === true && !base?.damaged) {
+    if (!get('damage_status')) patch.damage_status = 'Reported';
+    if (!get('damaged_date')) patch.damaged_date = today();
+    if (!get('reminder_date') || get('reminder_done')) { patch.reminder_date = addDays(2); patch.reminder_note = get('reminder_note') && !get('reminder_done') ? get('reminder_note') : DMG_NOTE; patch.reminder_done = false; }
+  }
+  if (patch.damage_status === 'Resolved' && get('reminder_note') === DMG_NOTE && !get('reminder_done')) patch.reminder_done = true;
+  if ('reminder_date' in patch && patch.reminder_date !== (base?.reminder_date ?? null)) { patch.reminder_emailed = false; if (patch.reminder_date && !patch.reminder_done) patch.reminder_done = false; }
+  return patch;
+}
+
+async function updateRow(snap, patch, quiet) {
+  patch = sideEffects(clean(patch), snap);
+  const v = snap.version || 1;
+  const upd = { ...patch, version: v + 1, updated_at: new Date().toISOString() };
+  const { data, error } = await sb.from(T).update(upd).eq('id', snap.id).eq('version', v).select();
+  if (error) { toast('Save failed: ' + error.message, true); return null; }
+  if (!data.length) { toast('Someone else changed this order – reloaded. Please re-apply your change.', true); await load(true); return null; }
+  const i = rows.findIndex(r => r.id === snap.id);
+  if (i > -1) rows[i] = data[0]; else rows.push(data[0]);
+  cache(); refreshSuppliers(); render(); checkReminders();
+  return data[0];
+}
+
+async function insertRow(rec) {
+  rec = sideEffects(clean(rec), null);
+  if (!rec.status) rec.status = 'To order';
+  const { data, error } = await sb.from(T).insert(rec).select();
+  if (error) { toast('Save failed: ' + error.message, true); return null; }
+  rows.push(data[0]); cache(); refreshSuppliers(); render(); checkReminders();
+  return data[0];
+}
+
+async function deleteRow(r) {
+  const { error } = await sb.from(T).delete().eq('id', r.id);
+  if (error) { toast('Delete failed: ' + error.message, true); return false; }
+  if (r.photos?.length) sb.storage.from(BUCKET).remove(r.photos).catch(console.warn);
+  rows = rows.filter(x => x.id !== r.id); cache(); render(); checkReminders();
+  return true;
+}
+
+// ---- filtering ----
+function matchSearch(r, q) {
+  if (!q) return true;
+  const hay = (SEARCH_FIELDS.map(f => r[f] ?? '').join(' ') + ' ' + (r.followups || []).map(f => f.note).join(' ') + (r.damaged ? ' damaged' : '')).toLowerCase();
+  const hayC = compact(hay);
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(t => hay.includes(t) || (compact(t) && hayC.includes(compact(t))));
+}
+function matchFilters(r) {
+  if (state.status && r.status !== state.status) return false;
+  if (state.supplier && (r.supplier || '') !== state.supplier) return false;
+  if (state.from || state.to) {
+    let d = r[state.dateField]; if (!d) return false; d = String(d).slice(0, 10);
+    if (state.from && d < state.from) return false;
+    if (state.to && d > state.to) return false;
+  }
+  return true;
+}
+function sorter() {
+  const [f, dir] = state.sort.split(':');
+  return (a, b) => {
+    const x = a[f] ?? '', y = b[f] ?? '';
+    if (x === '' && y !== '') return 1;
+    if (y === '' && x !== '') return -1;
+    const c = String(x).localeCompare(String(y), undefined, {numeric: true, sensitivity: 'base'});
+    return dir === 'd' ? -c : c;
+  };
+}
+function filtered(view) {
+  const vf = VIEWS[view] || VIEWS.all;
+  return rows.filter(r => vf(r) && matchSearch(r, state.q) && matchFilters(r));
+}
+
+// ---- render ----
+function card(r) {
+  const od = isOverdue(r), rd = isRemDue(r), si = STATUSES.indexOf(r.status), dmg = isDamagedOpen(r);
+  const line1 = [
+    r.part_number && `<span class="pn">${esc(r.part_number)}</span>`,
+    r.qty != null && Number(r.qty) !== 1 && `×${esc(r.qty)}`,
+    r.supplier && esc(r.supplier),
+    r.order_ref && `PO ${esc(r.order_ref)}`
+  ].filter(Boolean).join(' · ');
+  const line2 = [
+    r.vehicle_reg && `<span class="reg">${esc(r.vehicle_reg)}</span>`,
+    r.customer && esc(r.customer),
+    r.job_ref && `Job ${esc(r.job_ref)}`
+  ].filter(Boolean).join(' · ');
+  const nP = (r.photos || []).length, nF = (r.followups || []).length;
+  const dates = [
+    r.ordered_date && `<span>Ordered ${fmt(r.ordered_date)}</span>`,
+    r.eta_date && !r.received_date && `<span class="${od ? 'red' : ''}">ETA ${fmt(r.eta_date)}${od ? ' · overdue' : ''}</span>`,
+    r.received_date && `<span>In ${fmt(r.received_date)}</span>`,
+    r.reminder_date && !r.reminder_done && `<span class="${rd ? 'amber' : ''}">🔔 ${fmt(r.reminder_date)}${r.reminder_note ? ' – ' + esc(r.reminder_note) : ''}</span>`,
+    nP && `<span>📷 ${nP}</span>`,
+    nF && `<span>💬 ${nF}</span>`
+  ].filter(Boolean).join('');
+  const qa = [];
+  if (r.status === 'To order') qa.push(`<button data-act="Ordered">Mark ordered</button>`);
+  if (OPEN.includes(r.status)) qa.push(`<button data-act="Arrived">Arrived</button>`);
+  if (r.status === 'Arrived' && !dmg) qa.push(`<button data-act="Collected">Collected / fitted</button>`);
+  if ((r.status === 'Arrived' || OPEN.includes(r.status)) && !r.damaged) qa.push(`<button data-act="damage">⚠ Damaged</button>`);
+  if (dmg) qa.push(`<button data-act="followup">💬 Follow up</button>`);
+  if (rd) qa.push(`<button data-act="remdone">✓ Reminder done</button><button data-act="snooze">Snooze 1 day</button>`);
+  const tag = r.damaged ? `<div><span class="dtag ${dmg ? '' : 'res'}">DAMAGED · ${esc(r.damage_status || 'Reported')}${r.damage_ref ? ' · ' + esc(r.damage_ref) : ''}</span></div>` : '';
+  return `<article class="card st${si} ${od ? 'od' : ''} ${dmg ? 'dmg' : ''}" data-id="${r.id}">
+    <div class="row1"><span class="desc">${esc(r.description)}</span><span class="pill s${si}">${esc(r.status)}</span></div>
+    ${line1 ? `<div class="meta">${line1}</div>` : ''}
+    ${line2 ? `<div class="meta">${line2}</div>` : ''}
+    ${tag}
+    ${dates ? `<div class="dates">${dates}</div>` : ''}
+    ${qa.length ? `<div class="qa">${qa.join('')}</div>` : ''}
+  </article>`;
+}
+
+function render() {
+  for (const v of Object.keys(VIEWS)) { const el = $('c_' + v); if (el) { const n = rows.filter(VIEWS[v]).length; el.textContent = n ? ' ' + n : ''; } }
+  document.querySelectorAll('#views button').forEach(b => b.classList.toggle('on', b.dataset.v === state.view));
+  $('filterBtn').classList.toggle('on', !!(state.status || state.supplier || state.from || state.to));
+  const list = filtered(state.view).sort(sorter());
+  let hint = '';
+  if (state.q || state.status || state.supplier || state.from || state.to) {
+    const total = filtered('all').length;
+    hint = `${list.length} match${list.length === 1 ? '' : 'es'}`;
+    if (state.view !== 'all' && total > list.length) hint += ` · ${total - list.length} more in other views – <a data-showall>show all</a>`;
+  }
+  $('list').innerHTML = (hint ? `<div class="hint">${hint}</div>` : '') +
+    (list.length ? list.map(card).join('') : `<div class="empty">${rows.length ? 'Nothing here.' : 'No orders yet – tap ＋ to add one.'}</div>`);
+}
+
+function refreshSuppliers() {
+  const sups = [...new Set(rows.map(r => r.supplier).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  $('supList').innerHTML = sups.map(s => `<option value="${esc(s)}">`).join('');
+  const sel = $('fSupplier'), cur = state.supplier;
+  sel.innerHTML = '<option value="">Any supplier</option>' + sups.map(s => `<option ${s === cur ? 'selected' : ''}>${esc(s)}</option>`).join('');
+}
+
+// ---- reminders / notifications ----
+async function checkReminders() {
+  const due = rows.filter(isRemDue), od = rows.filter(isOverdue), dm = rows.filter(isDamagedOpen);
+  const b = $('banner');
+  if (due.length || od.length || dm.length) {
+    const parts = [];
+    if (due.length) parts.push(`🔔 ${due.length} reminder${due.length > 1 ? 's' : ''} due`);
+    if (od.length) parts.push(`⚠ ${od.length} overdue`);
+    if (dm.length) parts.push(`💥 ${dm.length} damaged open`);
+    b.innerHTML = parts.join(' &nbsp;·&nbsp; ') + ' – tap to view';
+    b.dataset.v = due.length ? 'reminders' : od.length ? 'overdue' : 'damaged';
+    b.classList.remove('hidden');
+  } else b.classList.add('hidden');
+
+  $('bellBtn').classList.toggle('on', 'Notification' in window && Notification.permission === 'granted');
+  if (!due.length || !('Notification' in window) || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
+  const log = ls.get('po_notified', {date: '', ids: []});
+  if (log.date !== today()) { log.date = today(); log.ids = []; }
+  const fresh = due.filter(r => !log.ids.includes(r.id));
+  if (!fresh.length) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const body = fresh.slice(0, 5).map(r => `• ${r.description}${r.vehicle_reg ? ' (' + r.vehicle_reg + ')' : ''}${r.reminder_note ? ' – ' + r.reminder_note : ''}`).join('\n') + (fresh.length > 5 ? `\n+${fresh.length - 5} more` : '');
+    await reg.showNotification(`Parts reminders: ${fresh.length} due`, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'po-reminders', data: {url: './?view=reminders'} });
+    log.ids.push(...fresh.map(r => r.id)); ls.set('po_notified', log);
+  } catch (e) { console.warn(e); }
+}
+
+// ---- price file (catalog) ----
+async function loadCatalog(force) {
+  const cached = await idb.get('catalog');
+  if (cached && !catalog) setCatalog(cached);
+  try {
+    const { data, error } = await sb.storage.from(BUCKET).list('catalog', { search: 'catalog.json' });
+    if (error) throw error;
+    const f = (data || []).find(x => x.name === 'catalog.json');
+    if (!f) { if (cached) { await idb.set('catalog', null); setCatalog(null); } return; }
+    const stamp = f.updated_at || f.created_at;
+    if (!force && cached && cached.stamp === stamp) return;
+    const res = await fetch(photoUrl('catalog/catalog.json') + '?v=' + encodeURIComponent(stamp));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const cat = await res.json(); cat.stamp = stamp;
+    await idb.set('catalog', cat); setCatalog(cat);
+    if (force) toast(`Price file: ${cat.items.length.toLocaleString()} parts`);
+  } catch (e) { console.warn('catalog', e); if (force) toast('Could not download price file: ' + (e.message || e), true); }
+}
+function setCatalog(cat) { catalog = cat && cat.items ? cat : null; catIdx = catalog ? buildIndex(catalog.items) : null; renderCatInfo(); }
+function renderCatInfo() {
+  const el = $('catInfo'); if (!el) return;
+  if (!catalog) { el.innerHTML = 'No price file loaded yet.'; return; }
+  const by = {}; catalog.items.forEach(i => by[i[3] || '–'] = (by[i[3] || '–'] || 0) + 1);
+  el.innerHTML = `<b>${catalog.items.length.toLocaleString()}</b> parts loaded<br>` + Object.entries(by).map(([k, n]) => `${esc(k)}: ${n.toLocaleString()}`).join(' · ') +
+    `<br><span class="mut">Updated ${catalog.updated ? fmtDT(catalog.updated) : '?'}</span>`;
+}
+async function importCatalog(file) {
+  const btn = $('catImport'); btn.disabled = true; btn.textContent = 'Importing…';
+  try {
+    const text = await file.text();
+    const guess = (file.name.match(/^([a-z]+)/i) || [])[1] || '';
+    const { items, skipped } = csvToCatalog(text, guess.slice(0, 3).toUpperCase());
+    if (!items.length) throw new Error('No parts found in file');
+    const frns = new Set(items.map(i => i[3]));
+    const kept = (catalog?.items || []).filter(i => !frns.has(i[3]));
+    const cat = { updated: new Date().toISOString(), items: kept.concat(items) };
+    const { error } = await sb.storage.from(BUCKET).upload('catalog/catalog.json', new Blob([JSON.stringify(cat)], {type: 'application/json'}), { upsert: true, contentType: 'application/json', cacheControl: '60' });
+    if (error) throw error;
+    await idb.set('catalog', null);
+    await loadCatalog(false);
+    toast(`Imported ${items.length.toLocaleString()} parts` + (skipped ? ` · ${skipped} skipped (blank/Excel-damaged codes)` : ''));
+  } catch (e) { toast('Import failed: ' + (e.message || e), true); }
+  btn.disabled = false; btn.textContent = 'Import CSV…';
+}
+
+function pnHint(val) {
+  const h = $('pnHint'); h.className = 'pnhint'; h.innerHTML = '';
+  const d = $('descIn');
+  if (autoDesc && d.value === autoDesc) { d.value = ''; autoDesc = ''; } // drop description auto-filled from a previous part no
+  if (!val.trim()) return;
+  if (!catalog) { h.textContent = 'No price file loaded (📄)'; return; }
+  const hits = catLookup(catalog, catIdx, val);
+  if (!hits.length) { h.className = 'pnhint warn'; h.textContent = 'Not in price file'; return; }
+  const it = hits[0], sup = supersededBy(it[1]);
+  if (sup) { h.className = 'pnhint warn'; h.innerHTML = `Superseded → <b>${esc(sup)}</b><button type="button" data-use="${esc(sup)}">Use ${esc(sup)}</button>`; return; }
+  h.className = 'pnhint ok';
+  h.innerHTML = `✓ ${esc(it[1])}${it[2] ? ' · Bin ' + esc(it[2]) : ''}${it[4] != null ? ' · €' + Number(it[4]).toFixed(2) : ''}${it[3] ? ' · ' + esc(it[3]) : ''}${hits.length > 1 ? ` · ${hits.length} matches` : ''}`;
+  if (!d.value.trim()) { d.value = autoDesc = it[1]; }
+}
+function pnSuggest(val) {
+  const box = $('pnSug');
+  const list = catalog ? catSuggest(catalog, catIdx, val, 8) : [];
+  if (!list.length || (list.length === 1 && catKey(list[0][0]) === catKey(val))) { box.classList.add('hidden'); return; }
+  box.innerHTML = list.map(i => `<div data-code="${esc(i[0])}"><span class="c">${esc(i[0])}</span>${esc(i[1])}${i[2] ? `<span class="l">${esc(i[2])}</span>` : ''}</div>`).join('');
+  box.classList.remove('hidden');
+}
+
+// ---- photos ----
+async function compress(file) {
+  const max = 1600;
+  try {
+    const bmp = await createImageBitmap(file);
+    const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
+  } catch (e) { return file; }
+}
+function renderPhotos() {
+  const r = editing && latest(editing.id), ph = r?.photos || [];
+  $('photoGrid').innerHTML = ph.map(p => `<img src="${esc(photoUrl(p))}" data-p="${esc(p)}" loading="lazy" alt="">`).join('') +
+    `<div class="padd" id="photoAdd"><b>＋</b>${ph.length ? 'Add' : 'Add photo'}</div>`;
+}
+async function ensureSaved() {
+  if (editing) return true;
+  const data = readForm();
+  if (!data.description.trim()) { toast('Enter a description first', true); return false; }
+  const row = await insertRow(data);
+  if (!row) return false;
+  setEditing(row); toast('Order saved');
+  return true;
+}
+async function addPhotos(files) {
+  if (!files.length || !(await ensureSaved())) return;
+  const id = editing.id, paths = [];
+  toast(`Uploading ${files.length} photo${files.length > 1 ? 's' : ''}…`);
+  for (let i = 0; i < files.length; i++) {
+    const blob = await compress(files[i]);
+    const path = `photos/${id}/${Date.now()}-${i}.jpg`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+    if (error) { toast('Upload failed: ' + error.message, true); continue; }
+    paths.push(path);
+  }
+  if (!paths.length) return;
+  const cur = latest(id);
+  const row = await updateRow(cur, { photos: [...(cur.photos || []), ...paths] });
+  if (row) { editing = { ...editing, ...pick(row, ['photos','version','updated_at']) }; renderPhotos(); toast('Photo saved'); }
+}
+async function deletePhoto(path) {
+  const cur = latest(editing.id);
+  const row = await updateRow(cur, { photos: (cur.photos || []).filter(p => p !== path) });
+  if (!row) return;
+  sb.storage.from(BUCKET).remove([path]).catch(console.warn);
+  editing = { ...editing, ...pick(row, ['photos','version','updated_at']) }; renderPhotos(); toast('Photo deleted');
+}
+const pick = (o, ks) => Object.fromEntries(ks.map(k => [k, o[k]]));
+
+// ---- follow-ups ----
+function renderFollowups() {
+  const r = editing && latest(editing.id), list = (r?.followups || []).slice().reverse();
+  $('fuList').innerHTML = list.length ? list.map(f => `<div class="fu"><div class="w">${fmtDT(f.at)}${f.by ? ' · ' + esc(f.by) : ''}</div><div class="n">${esc(f.note)}</div></div>`).join('') : '<div class="hint" style="margin:0">No follow-ups logged yet.</div>';
+}
+async function addFollowup() {
+  const note = $('fuNote').value.trim();
+  if (!note) return toast('Type a follow-up note first', true);
+  if (!(await ensureSaved())) return;
+  const cur = latest(editing.id);
+  const patch = { followups: [...(cur.followups || []), { at: new Date().toISOString(), by: ls.get('po_who', ''), note }] };
+  if (fuNext) { patch.reminder_date = addDays(+fuNext); patch.reminder_note = note.length > 60 ? note.slice(0, 57) + '…' : note; patch.reminder_done = false; }
+  const row = await updateRow(cur, patch);
+  if (!row) return;
+  editing = { ...editing, ...pick(row, ['followups','reminder_date','reminder_note','reminder_done','reminder_emailed','version','updated_at']) };
+  const f = $('frm'); f.elements.reminder_date.value = row.reminder_date || ''; f.elements.reminder_note.value = row.reminder_note || ''; f.elements.reminder_done.checked = !!row.reminder_done;
+  $('fuNote').value = ''; setFuNext('');
+  renderFollowups(); toast(fuNext ? 'Follow-up logged · reminder set' : 'Follow-up logged');
+}
+function setFuNext(v) { fuNext = v; document.querySelectorAll('#fuChips [data-fu]').forEach(b => { const on = b.dataset.fu === v; b.style.background = on ? 'var(--acc)' : ''; b.style.color = on ? '#111' : ''; }); }
+
+// ---- editor ----
+function setEditing(r) {
+  editing = { ...r };
+  $('dlgTitle').textContent = 'Edit order';
+  $('delBtn').classList.remove('hidden'); $('dupBtn').classList.remove('hidden');
+  $('stamp').textContent = `Added ${fmt(r.created_at)} · last updated ${fmtDT(r.updated_at)}`;
+}
+function toggleDmg() { $('dmgFields').classList.toggle('hidden', !$('dmgChk').checked); }
+function openEditor(r, copy, focus) {
+  const f = $('frm');
+  editing = r && !copy ? { ...r } : null;
+  $('dlgTitle').textContent = editing ? 'Edit order' : (copy ? 'Duplicate order' : 'New order');
+  for (const k of FIELDS) {
+    const el = f.elements[k]; if (!el) continue;
+    let v = r ? r[k] : null;
+    if (copy && ['received_date','reminder_date','reminder_note','reminder_done','order_ref','ordered_date','eta_date','damaged','damage_status','damage_ref','damaged_date','damage_notes'].includes(k)) v = null;
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
+  }
+  if (!r || copy) { f.elements.status.value = 'To order'; f.elements.ordered_by.value = f.elements.ordered_by.value || ls.get('po_who', ''); if (!r) f.elements.qty.value = 1; }
+  autoDesc = ''; $('pnSug').classList.add('hidden'); $('fuNote').value = ''; setFuNext('');
+  $('pnHint').className = 'pnhint'; $('pnHint').innerHTML = '';
+  if (r?.part_number && catalog) { const keep = f.elements.description.value; pnHint(r.part_number); if (keep) f.elements.description.value = keep; }
+  toggleDmg();
+  $('delBtn').classList.toggle('hidden', !editing);
+  $('dupBtn').classList.toggle('hidden', !editing);
+  $('stamp').textContent = editing ? `Added ${fmt(r.created_at)} · last updated ${fmtDT(r.updated_at)}` : '';
+  renderPhotos(); renderFollowups();
+  $('dlg').showModal();
+  $('dlg').scrollTop = 0;
+  if (focus === 'damage') { f.elements.damaged.checked = true; toggleDmg(); if (!f.elements.received_date.value) f.elements.received_date.value = today(); setTimeout(() => $('dmgSec').scrollIntoView({block: 'start', behavior: 'smooth'}), 60); }
+  else if (focus === 'followup') setTimeout(() => { $('fuNote').scrollIntoView({block: 'center', behavior: 'smooth'}); $('fuNote').focus(); }, 60);
+  else if (!editing) setTimeout(() => f.elements.part_number.focus(), 50);
+}
+function readForm() {
+  const f = $('frm'), out = {};
+  for (const k of FIELDS) { const el = f.elements[k]; if (el) out[k] = el.type === 'checkbox' ? el.checked : el.value; }
+  return out;
+}
+
+function downloadIcs(rec) {
+  if (!rec.reminder_date) { toast('Set a reminder date first', true); return; }
+  const d = rec.reminder_date.replace(/-/g, ''), d2 = addDays(1, rec.reminder_date).replace(/-/g, '');
+  const e = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const details = [rec.reminder_note, rec.part_number && 'Part: ' + rec.part_number, rec.supplier && 'Supplier: ' + rec.supplier, rec.order_ref && 'PO: ' + rec.order_ref, rec.vehicle_reg && 'Reg: ' + rec.vehicle_reg, rec.customer && 'Customer: ' + rec.customer, rec.damaged && 'DAMAGED – ' + (rec.damage_status || '') + (rec.damage_ref ? ' ref ' + rec.damage_ref : ''), location.href.split('?')[0]].filter(Boolean).join('\n');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//FaoiteApps//Parts Orders//EN','BEGIN:VEVENT',
+    `UID:po-${rec.id || Date.now()}-${d}@faoiteapps`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d2}`,
+    `SUMMARY:${e('Parts: ' + (rec.description || 'order') + (rec.vehicle_reg ? ' (' + rec.vehicle_reg.toUpperCase() + ')' : ''))}`,
+    `DESCRIPTION:${e(details)}`, 'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:Parts order reminder','TRIGGER:PT9H','END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], {type: 'text/calendar'}));
+  a.download = 'parts-reminder-' + rec.reminder_date + '.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function exportCsv() {
+  const list = filtered(state.view).sort(sorter());
+  const cols = ['id', ...FIELDS, 'photos', 'followups', 'created_at', 'updated_at'];
+  const val = (r, c) => c === 'photos' ? (r.photos || []).map(photoUrl).join(' ') : c === 'followups' ? (r.followups || []).map(f => `${fmtDT(f.at)}${f.by ? ' ' + f.by : ''}: ${f.note}`).join(' | ') : r[c];
+  const q = v => { v = v ?? ''; v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = [cols.join(','), ...list.map(r => cols.map(c => q(val(r, c))).join(','))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], {type: 'text/csv'}));
+  a.download = `parts-orders-${state.view}-${today()}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast(`Exported ${list.length} rows`);
+}
+
+// ---- events ----
+$('statusSel').innerHTML = STATUSES.map(s => `<option>${s}</option>`).join('');
+$('dmgStatus').innerHTML = DMG_STATUSES.map(s => `<option>${s}</option>`).join('');
+$('fStatus').innerHTML += STATUSES.map(s => `<option>${s}</option>`).join('');
+$('q').value = state.q; $('fStatus').value = state.status; $('fDateField').value = state.dateField;
+$('fFrom').value = state.from; $('fTo').value = state.to; $('fSort').value = state.sort;
+
+let qt; $('q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; saveState(); render(); }, 120); });
+const bindF = (id, key) => $(id).addEventListener('change', e => { state[key] = e.target.value; saveState(); render(); });
+bindF('fStatus', 'status'); bindF('fSupplier', 'supplier'); bindF('fDateField', 'dateField'); bindF('fFrom', 'from'); bindF('fTo', 'to'); bindF('fSort', 'sort');
+$('filterBtn').onclick = () => $('filters').classList.toggle('hidden');
+$('clearF').onclick = () => { Object.assign(state, {status:'', supplier:'', from:'', to:'', q:''}); ['fStatus','fSupplier','fFrom','fTo','q'].forEach(i => $(i).value = ''); saveState(); render(); };
+$('csvBtn').onclick = exportCsv;
+$('views').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.view = b.dataset.v; saveState(); render(); window.scrollTo(0, 0); };
+$('banner').onclick = () => { state.view = $('banner').dataset.v; saveState(); render(); };
+$('refreshBtn').onclick = () => { load(); loadCatalog(false); };
+$('addBtn').onclick = () => openEditor(null);
+$('xBtn').onclick = () => $('dlg').close();
+$('bellBtn').onclick = async () => {
+  if (!('Notification' in window)) return toast('Notifications not supported on this browser', true);
+  if (Notification.permission === 'granted') { toast('Notifications are on'); ls.set('po_notified', {date:'', ids:[]}); return checkReminders(); }
+  const p = await Notification.requestPermission();
+  toast(p === 'granted' ? 'Notifications on – you\'ll be alerted when the app opens with reminders due' : 'Notifications blocked', p !== 'granted');
+  checkReminders();
+};
+
+$('list').addEventListener('click', async e => {
+  if (e.target.closest('[data-showall]')) { state.view = 'all'; saveState(); render(); return; }
+  const c = e.target.closest('.card'); if (!c) return;
+  const r = rows.find(x => x.id == c.dataset.id); if (!r) return;
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return openEditor(r);
+  e.stopPropagation();
+  if (act === 'damage') return openEditor(r, false, 'damage');
+  if (act === 'followup') return openEditor(r, false, 'followup');
+  if (act === 'remdone') { if (await updateRow(r, {reminder_done: true})) toast('Reminder cleared'); }
+  else if (act === 'snooze') { if (await updateRow(r, {reminder_date: addDays(1)})) toast('Snoozed to tomorrow'); }
+  else if (await updateRow(r, {status: act})) toast(`${r.description} → ${act}`);
+});
+
+// part number lookup
+let pt;
+$('pnIn').addEventListener('input', e => { clearTimeout(pt); const v = e.target.value; pt = setTimeout(() => { pnSuggest(v); pnHint(v); }, 150); });
+$('pnIn').addEventListener('blur', () => setTimeout(() => $('pnSug').classList.add('hidden'), 200));
+$('pnIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('pnSug').classList.add('hidden'); $('descIn').focus(); } });
+$('pnSug').addEventListener('mousedown', e => e.preventDefault());
+$('pnSug').addEventListener('click', e => { const d = e.target.closest('[data-code]'); if (!d) return; $('pnIn').value = d.dataset.code; $('pnSug').classList.add('hidden'); pnHint(d.dataset.code); });
+$('pnHint').addEventListener('click', e => { const b = e.target.closest('[data-use]'); if (!b) return; $('pnIn').value = b.dataset.use; if ($('descIn').value.startsWith('NOW ')) $('descIn').value = ''; pnHint(b.dataset.use); });
+$('descIn').addEventListener('input', () => { autoDesc = ''; });
+
+$('dmgChk').addEventListener('change', toggleDmg);
+
+// photos
+$('photoGrid').addEventListener('click', e => {
+  if (e.target.closest('#photoAdd')) return $('photoIn').click();
+  const img = e.target.closest('img[data-p]'); if (!img) return;
+  pvPath = img.dataset.p; $('pvImg').src = photoUrl(pvPath); $('pvOpen').href = photoUrl(pvPath); $('pv').showModal();
+});
+$('photoIn').addEventListener('change', e => { const files = [...e.target.files]; e.target.value = ''; addPhotos(files); });
+$('pvClose').onclick = () => $('pv').close();
+$('pvDel').onclick = async () => { if (!confirm('Delete this photo?')) return; $('pv').close(); await deletePhoto(pvPath); };
+
+// follow-ups
+$('fuChips').addEventListener('click', e => { const b = e.target.closest('[data-fu]'); if (b) setFuNext(b.dataset.fu); });
+$('fuAdd').onclick = addFollowup;
+
+// reminder chips
+$('remChips').onclick = e => {
+  const b = e.target.closest('[data-rd]'); if (!b) return;
+  const f = $('frm'), v = b.dataset.rd;
+  if (v === 'x') { f.elements.reminder_date.value = ''; return; }
+  if (v === 'eta') { if (!f.elements.eta_date.value) return toast('No ETA set', true); f.elements.reminder_date.value = f.elements.eta_date.value; }
+  else f.elements.reminder_date.value = addDays(+v);
+  f.elements.reminder_done.checked = false;
+};
+$('remDate').addEventListener('change', () => { $('remDone').checked = false; });
+
+$('frm').onsubmit = async e => {
+  e.preventDefault();
+  const data = readForm();
+  if (!data.description.trim()) return toast('Description is required', true);
+  if (data.ordered_by) ls.set('po_who', data.ordered_by.trim());
+  $('saveBtn').disabled = true;
+  let ok;
+  if (editing) {
+    const patch = {};
+    for (const k of FIELDS) {
+      const a = clean({[k]: data[k]})[k], b = editing[k] ?? null;
+      if (BOOLS.includes(k) ? !!a !== !!b : String(a ?? '') !== String(b ?? '')) patch[k] = data[k];
+    }
+    ok = Object.keys(patch).length ? await updateRow(editing, patch) : true;
+  } else ok = await insertRow(data);
+  $('saveBtn').disabled = false;
+  if (ok) { $('dlg').close(); toast('Saved'); }
+};
+$('delBtn').onclick = async () => { if (editing && confirm(`Delete "${editing.description}"${(latest(editing.id)?.photos || []).length ? ' and its photos' : ''}?`)) { if (await deleteRow(latest(editing.id) || editing)) { $('dlg').close(); toast('Deleted'); } } };
+$('dupBtn').onclick = () => { const r = { ...editing, ...clean(readForm()) }; $('dlg').close(); openEditor(r, true); };
+$('icsBtn').onclick = () => downloadIcs({ ...(editing || {}), ...clean(readForm()) });
+
+// price file dialog
+$('catBtn').onclick = () => { renderCatInfo(); $('catDlg').showModal(); };
+$('catX').onclick = () => $('catDlg').close();
+$('catImport').onclick = () => $('catFile').click();
+$('catFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importCatalog(f); });
+$('catReload').onclick = () => loadCatalog(true);
+$('catClear').onclick = async () => {
+  if (!confirm('Remove the price file for everyone?')) return;
+  const { error } = await sb.storage.from(BUCKET).remove(['catalog/catalog.json']);
+  if (error) return toast('Failed: ' + error.message, true);
+  await idb.set('catalog', null); setCatalog(null); toast('Price file cleared');
+};
+
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !$('dlg').open) load(true); });
+setInterval(() => { if (document.visibilityState === 'visible' && !$('dlg').open) load(true); }, 60000);
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(console.warn);
+
+if (SUPABASE_KEY.startsWith('PASTE')) { setSync('No key', 'bad'); rows = ls.get('po_cache', []); render(); toast('Add your Supabase anon key in index.html', true); }
+else { rows = ls.get('po_cache', []); render(); load(); loadCatalog(false); }
+</script>
+</body>
+</html>
