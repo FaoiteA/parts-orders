@@ -61,6 +61,10 @@ main{padding:10px 12px 100px;max-width:900px;margin:0 auto}
 .red{color:var(--red)!important;font-weight:600}.amber{color:var(--acc)!important;font-weight:600}
 .qa{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .qa button{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.grp{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin:16px 2px 8px}
+.grp:first-child,.hint+.grp{margin-top:4px}
+.grp b{font-weight:600;color:var(--acc);letter-spacing:0}
+.grp::after{content:'';flex:1;height:1px;background:var(--line)}
 .empty{text-align:center;color:var(--mut);padding:40px 10px}
 .fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;border:none;background:var(--acc);color:#111;font-size:30px;box-shadow:0 6px 20px #0008;cursor:pointer;z-index:6}
 .btn{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 14px;cursor:pointer}
@@ -573,7 +577,32 @@ function render() {
     if (state.view !== 'all' && total > list.length) hint += ` · ${total - list.length} more in other views – <a data-showall>show all</a>`;
   }
   $('list').innerHTML = (hint ? `<div class="hint">${hint}</div>` : '') +
-    (list.length ? list.map(card).join('') : `<div class="empty">${rows.length ? 'Nothing here.' : 'No orders yet – tap ＋ to add one.'}</div>`);
+    (list.length ? withHeadings(list) : `<div class="empty">${rows.length ? 'Nothing here.' : 'No orders yet – tap ＋ to add one.'}</div>`);
+}
+
+// ---- date headings (follow the current sort field) ----
+const DATE_SORTS = ['updated_at','created_at','ordered_date','eta_date','reminder_date','received_date','damaged_date'];
+const localDay = v => !v ? null : String(v).length === 10 ? String(v) : new Date(v).toLocaleDateString('en-CA');
+function weekStart(ds) { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toLocaleDateString('en-CA'); }
+function bucket(ds) {
+  if (!ds) return 'No date';
+  const t = today();
+  if (ds === t) return 'Today';
+  if (ds === addDays(-1)) return 'Yesterday';
+  if (ds === addDays(1)) return 'Tomorrow';
+  const w = weekStart(ds), tw = weekStart(t);
+  if (w === tw) return 'This week';
+  if (w === addDays(-7, tw)) return 'Last week';
+  if (w === addDays(7, tw)) return 'Next week';
+  const d = new Date(ds + 'T12:00:00');
+  return d.toLocaleDateString('en-IE', d.getFullYear() === new Date().getFullYear() ? {month: 'long'} : {month: 'long', year: 'numeric'});
+}
+function withHeadings(list) {
+  const f = state.sort.split(':')[0];
+  if (!DATE_SORTS.includes(f)) return list.map(card).join('');
+  const groups = [];
+  for (const r of list) { const b = bucket(localDay(r[f])); if (!groups.length || groups[groups.length - 1].b !== b) groups.push({b, items: []}); groups[groups.length - 1].items.push(r); }
+  return groups.map(g => `<h3 class="grp">${esc(g.b)}<b>${g.items.length}</b></h3>` + g.items.map(card).join('')).join('');
 }
 
 function refreshSuppliers() {
