@@ -56,6 +56,9 @@ main{padding:10px 12px 100px;max-width:900px;margin:0 auto}
 .dtag.res{background:#334155;color:var(--mut)}
 .meta{color:var(--mut);font-size:13px;margin-top:2px}
 .pn{color:var(--text);font-family:ui-monospace,Consolas,monospace}
+.dno{color:var(--acc);font-family:ui-monospace,Consolas,monospace;font-weight:700}
+.meta b{color:var(--text);font-weight:600}
+a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .reg{background:#facc15;color:#111;font-weight:700;padding:0 5px;border-radius:3px;font-size:12px}
 .dates{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut);margin-top:6px}
 .red{color:var(--red)!important;font-weight:600}.amber{color:var(--acc)!important;font-weight:600}
@@ -135,7 +138,7 @@ dialog::backdrop{background:#000a}
     <button id="refreshBtn" class="icon" title="Refresh">⟳</button>
   </div>
   <div class="searchrow">
-    <input id="q" type="search" placeholder="Search part no, description, reg, PO, supplier…" autocomplete="off">
+    <input id="q" type="search" placeholder="Search order no, part no, reg, supplier ref…" autocomplete="off">
     <button id="filterBtn" class="icon" title="Filters">⚙</button>
   </div>
   <div id="filters" class="filters hidden">
@@ -143,12 +146,14 @@ dialog::backdrop{background:#000a}
     <div><label>Supplier</label><select id="fSupplier"><option value="">Any supplier</option></select></div>
     <div><label>Date type</label><select id="fDateField">
       <option value="ordered_date">Ordered</option><option value="eta_date">ETA</option>
-      <option value="received_date">Received</option><option value="reminder_date">Reminder</option>
+      <option value="received_date">Received</option><option value="collected_date">Collected / fitted</option>
+      <option value="returned_date">Returned</option><option value="cancelled_date">Cancelled</option><option value="reminder_date">Reminder</option>
       <option value="damaged_date">Damaged</option><option value="created_at">Created</option></select></div>
     <div><label>Sort</label><select id="fSort">
       <option value="updated_at:d">Last updated</option><option value="created_at:d">Newest added</option>
       <option value="eta_date:a">ETA (soonest)</option><option value="reminder_date:a">Reminder (soonest)</option>
-      <option value="ordered_date:d">Order date (newest)</option><option value="supplier:a">Supplier A–Z</option>
+      <option value="ordered_date:d">Order date (newest)</option><option value="received_date:d">Received (newest)</option>
+      <option value="collected_date:d">Collected / fitted (newest)</option><option value="supplier:a">Supplier A–Z</option>
       <option value="vehicle_reg:a">Reg A–Z</option></select></div>
     <div><label>From</label><input type="date" id="fFrom"></div>
     <div><label>To</label><input type="date" id="fTo"></div>
@@ -177,8 +182,10 @@ dialog::backdrop{background:#000a}
         <div id="pnSug" class="sug hidden"></div></div><div id="pnHint" class="pnhint"></div></div>
       <div><label>Qty</label><input name="qty" type="number" step="any" inputmode="decimal"></div>
       <div class="full"><label>Description *</label><input name="description" id="descIn" required></div>
+      <div><label>Order no (diary)</label><div style="display:flex;gap:6px"><input name="diary_no" id="diaryIn" inputmode="numeric" placeholder="e.g. 21600" style="font-family:ui-monospace,Consolas,monospace"><button type="button" class="btn" id="diaryNow" style="padding:9px 10px;flex:none">Now</button></div>
+        <div class="pnhint" id="diaryHint"></div></div>
+      <div><label>Supplier order / WIP no</label><input name="order_ref"></div>
       <div><label>Supplier</label><input name="supplier" list="supList"><datalist id="supList"></datalist></div>
-      <div><label>Order ref / PO</label><input name="order_ref"></div>
       <div><label>Status</label><select name="status" id="statusSel"></select></div>
       <div><label>Cost (€)</label><input name="cost" type="number" step="0.01" inputmode="decimal"></div>
 
@@ -193,14 +200,19 @@ dialog::backdrop{background:#000a}
       <div class="sec">Customer / job</div>
       <div><label>Vehicle reg</label><input name="vehicle_reg" style="text-transform:uppercase"></div>
       <div><label>Customer</label><input name="customer"></div>
+      <div><label>Phone</label><input name="customer_phone" type="tel" inputmode="tel" autocomplete="off"></div>
       <div><label>Job / WIP no.</label><input name="job_ref"></div>
       <div><label>Ordered by</label><input name="ordered_by"></div>
+      <div></div>
 
       <div class="sec">Dates</div>
-      <div><label>Ordered</label><input name="ordered_date" type="date"></div>
+      <div><label>Added to system</label><input id="addedOut" readonly tabindex="-1" style="color:var(--mut)"></div>
+      <div><label>Ordered</label><input name="ordered_date" id="dOrdered" type="date"></div>
       <div><label>ETA</label><input name="eta_date" type="date"></div>
-      <div><label>Received</label><input name="received_date" type="date"></div>
-      <div></div>
+      <div><label>Received</label><input name="received_date" id="dReceived" type="date"></div>
+      <div><label>Collected / fitted</label><input name="collected_date" type="date"></div>
+      <div id="wReturned"><label>Returned</label><input name="returned_date" type="date"></div>
+      <div id="wCancelled"><label>Cancelled</label><input name="cancelled_date" type="date"></div>
 
       <div class="sec dsec" id="dmgSec">Damage</div>
       <div class="full chk"><input type="checkbox" name="damaged" id="dmgChk"><label for="dmgChk">Part arrived damaged</label></div>
@@ -286,11 +298,34 @@ const BUCKET = 'parts-orders';
 const STATUSES = ['To order','Ordered','Back order','Arrived','Collected','Returned','Cancelled'];
 const OPEN = ['To order','Ordered','Back order'];
 const CLOSED = ['Collected','Returned','Cancelled'];
-const DMG_STATUSES = ['Reported','Claim submitted','Replacement ordered','Awaiting credit','Resolved'];
+// dates stamped automatically when a part moves to a status (only if still blank)
+// Diary order no = day of year + 24h time, e.g. 2 Jan 16:00 → 21600
+function diaryNo(d = new Date()) {
+  const day = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(d.getFullYear(), 0, 1)) / 86400000) + 1;
+  return String(day) + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+}
+// diary no → date it was ordered (assumes this year, or last year if that would be in the future)
+function diaryToDate(no) {
+  const s = String(no || '').trim();
+  if (!/^\d{5,7}$/.test(s)) return null;
+  const day = +s.slice(0, -4), hh = +s.slice(-4, -2), mm = +s.slice(-2);
+  if (day < 1 || day > 366 || hh > 23 || mm > 59) return null;
+  let y = new Date().getFullYear();
+  let d = new Date(y, 0, day, 12);
+  if (d > new Date()) d = new Date(--y, 0, day, 12);
+  return { date: d.toLocaleDateString('en-CA'), time: s.slice(-4, -2) + ':' + s.slice(-2) };
+}
+const STATUS_DATES = {
+  'Ordered': ['ordered_date'], 'Back order': ['ordered_date'], 'Arrived': ['received_date'],
+  'Collected': ['received_date','collected_date'], 'Returned': ['returned_date'], 'Cancelled': ['cancelled_date']
+};
+const DMG_STATUSES =['Reported','Claim submitted','Replacement ordered','Awaiting credit','Resolved'];
 const DMG_NOTE = 'Follow up damaged part';
-const FIELDS = ['description','part_number','qty','supplier','order_ref','status','cost','vehicle_reg','customer','job_ref','ordered_by','ordered_date','eta_date','received_date','damaged','damage_status','damage_ref','damaged_date','damage_notes','reminder_date','reminder_note','reminder_done','notes'];
+const FIELDS = ['description','part_number','qty','supplier','diary_no','order_ref','status','cost','vehicle_reg','customer','customer_phone','job_ref','ordered_by','ordered_date','eta_date','received_date','collected_date','returned_date','cancelled_date','damaged','damage_status','damage_ref','damaged_date','damage_notes','reminder_date','reminder_note','reminder_done','notes'];
 const BOOLS = ['damaged','reminder_done'];
-const SEARCH_FIELDS = ['part_number','description','supplier','order_ref','customer','vehicle_reg','job_ref','notes','reminder_note','ordered_by','status','damage_status','damage_ref','damage_notes'];
+// fields shared by every part on a multi-part order – editing one updates them all
+const SHARED = ['diary_no','order_ref','supplier','vehicle_reg','customer','customer_phone','job_ref','ordered_by'];
+const SEARCH_FIELDS = ['diary_no','customer_phone','part_number','description','supplier','order_ref','customer','vehicle_reg','job_ref','notes','reminder_note','ordered_by','status','damage_status','damage_ref','damage_notes'];
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
@@ -377,6 +412,7 @@ let editing = null;
 let loading = false;
 let catalog = null, catIdx = null;
 let mainLk = null;
+let diaryAuto = false; // diary no was auto-filled on a new order and not touched → re-stamp at save time
 let newGroup = null;
 let gCount = new Map();
 let fuNext = '';
@@ -447,8 +483,8 @@ function clean(patch) {
 
 function sideEffects(patch, base) {
   const get = k => (k in patch ? patch[k] : base?.[k]);
-  if (patch.status === 'Ordered' && !get('ordered_date')) patch.ordered_date = today();
-  if (patch.status === 'Arrived' && !get('received_date')) patch.received_date = today();
+  if (patch.status) for (const k of STATUS_DATES[patch.status] || []) if (!get(k)) patch[k] = today();
+  if ((patch.status === 'Ordered' || patch.status === 'Back order') && !get('diary_no') && (!get('ordered_date') || get('ordered_date') === today())) patch.diary_no = diaryNo();
   // newly marked damaged → defaults + follow-up reminder in 2 days
   if (patch.damaged === true && !base?.damaged) {
     if (!get('damage_status')) patch.damage_status = 'Reported';
@@ -525,28 +561,42 @@ function filtered(view) {
 // ---- render ----
 function card(r) {
   const od = isOverdue(r), rd = isRemDue(r), si = STATUSES.indexOf(r.status), dmg = isDamagedOpen(r);
+  const line0 = [
+    r.diary_no && `<span class="dno">#${esc(r.diary_no)}</span>`,
+    r.order_ref && `<span>Sup ref <b>${esc(r.order_ref)}</b></span>`
+  ].filter(Boolean).join(' · ');
   const line1 = [
     r.part_number && `<span class="pn">${esc(r.part_number)}</span>`,
     r.qty != null && Number(r.qty) !== 1 && `×${esc(r.qty)}`,
-    r.supplier && esc(r.supplier),
-    r.order_ref && `PO ${esc(r.order_ref)}`
+    r.supplier && esc(r.supplier)
   ].filter(Boolean).join(' · ');
   const line2 = [
     r.vehicle_reg && `<span class="reg">${esc(r.vehicle_reg)}</span>`,
     r.customer && esc(r.customer),
+    r.customer_phone && `<a class="tel" href="tel:${esc(String(r.customer_phone).replace(/[^\d+]/g, ''))}">📞 ${esc(r.customer_phone)}</a>`,
     r.job_ref && `Job ${esc(r.job_ref)}`
   ].filter(Boolean).join(' · ');
   const nP = (r.photos || []).length, nF = (r.followups || []).length, nG = r.order_group ? gCount.get(r.order_group) || 0 : 0;
   const dates = [
     nG > 1 && `<span>📦 ${nG}-part order</span>`,
+    !r.ordered_date && r.created_at && `<span>Added ${fmt(r.created_at)}</span>`,
     r.ordered_date && `<span>Ordered ${fmt(r.ordered_date)}</span>`,
-    r.eta_date && !r.received_date && `<span class="${od ? 'red' : ''}">ETA ${fmt(r.eta_date)}${od ? ' · overdue' : ''}</span>`,
+    r.eta_date && !r.received_date && OPEN.includes(r.status) && `<span class="${od ? 'red' : ''}">ETA ${fmt(r.eta_date)}${od ? ' · overdue' : ''}</span>`,
     r.received_date && `<span>In ${fmt(r.received_date)}</span>`,
+    r.collected_date && `<span>Fitted ${fmt(r.collected_date)}</span>`,
+    r.returned_date && `<span>Returned ${fmt(r.returned_date)}</span>`,
+    r.cancelled_date && `<span>Cancelled ${fmt(r.cancelled_date)}</span>`,
     r.reminder_date && !r.reminder_done && `<span class="${rd ? 'amber' : ''}">🔔 ${fmt(r.reminder_date)}${r.reminder_note ? ' – ' + esc(r.reminder_note) : ''}</span>`,
     nP && `<span>📷 ${nP}</span>`,
     nF && `<span>💬 ${nF}</span>`
   ].filter(Boolean).join('');
   const qa = [];
+  if (nG > 1) {
+    const sib = rows.filter(x => x.order_group === r.order_group);
+    if (r.status === 'To order' && sib.filter(s => s.status === 'To order').length > 1) qa.push(`<button data-act="g:Ordered">📦 All ordered</button>`);
+    else if (OPEN.includes(r.status) && sib.filter(s => OPEN.includes(s.status)).length > 1) qa.push(`<button data-act="g:Arrived">📦 All arrived</button>`);
+    else if (r.status === 'Arrived' && sib.filter(s => s.status === 'Arrived').length > 1) qa.push(`<button data-act="g:Collected">📦 All collected</button>`);
+  }
   if (r.status === 'To order') qa.push(`<button data-act="Ordered">Mark ordered</button>`);
   if (OPEN.includes(r.status)) qa.push(`<button data-act="Arrived">Arrived</button>`);
   if (r.status === 'Arrived' && !dmg) qa.push(`<button data-act="Collected">Collected / fitted</button>`);
@@ -556,6 +606,7 @@ function card(r) {
   const tag = r.damaged ? `<div><span class="dtag ${dmg ? '' : 'res'}">DAMAGED · ${esc(r.damage_status || 'Reported')}${r.damage_ref ? ' · ' + esc(r.damage_ref) : ''}</span></div>` : '';
   return `<article class="card st${si} ${od ? 'od' : ''} ${dmg ? 'dmg' : ''}" data-id="${r.id}">
     <div class="row1"><span class="desc">${esc(r.description)}</span><span class="pill s${si}">${esc(r.status)}</span></div>
+    ${line0 ? `<div class="meta">${line0}</div>` : ''}
     ${line1 ? `<div class="meta">${line1}</div>` : ''}
     ${line2 ? `<div class="meta">${line2}</div>` : ''}
     ${tag}
@@ -581,7 +632,7 @@ function render() {
 }
 
 // ---- date headings (follow the current sort field) ----
-const DATE_SORTS = ['updated_at','created_at','ordered_date','eta_date','reminder_date','received_date','damaged_date'];
+const DATE_SORTS = ['updated_at','created_at','ordered_date','eta_date','reminder_date','received_date','collected_date','returned_date','cancelled_date','damaged_date'];
 const localDay = v => !v ? null : String(v).length === 10 ? String(v) : new Date(v).toLocaleDateString('en-CA');
 function weekStart(ds) { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toLocaleDateString('en-CA'); }
 function bucket(ds) {
@@ -758,6 +809,7 @@ async function saveNew() {
   const lines = readLines();
   if (lines.some(l => !l.description.trim())) { toast('Every part needs a description', true); return null; }
   if (data.ordered_by) ls.set('po_who', data.ordered_by.trim());
+  if (diaryAuto && data.diary_no) { data.diary_no = diaryNo(); if (data.ordered_date) data.ordered_date = today(); }
   const group = newGroup || (lines.length ? uuid() : null);
   const blank = { reminder_date: null, reminder_note: null, reminder_done: false, damaged: false, damage_status: null, damage_ref: null, damaged_date: null, damage_notes: null };
   const recs = [{ ...data, order_group: group }, ...lines.map(l => ({ ...data, ...blank, ...l, order_group: group }))];
@@ -768,10 +820,26 @@ function renderGroup() {
   $('linesWrap').classList.toggle('hidden', !!editing);
   $('grpSec').classList.toggle('hidden', !editing); $('grpBox').classList.toggle('hidden', !editing);
   if (!r) return;
-  const sib = siblings(r), openN = sib.filter(s => OPEN.includes(s.status)).length;
+  const sib = siblings(r);
+  const cnt = st => sib.filter(s => s.status !== st && GROUP_FROM[st].includes(s.status)).length;
   $('grpSec').textContent = sib.length > 1 ? `Parts on this order (${sib.length})` : 'Parts on this order';
   $('grpBox').innerHTML = (sib.length > 1 ? sib.map(s => `<div class="sib ${s.id === r.id ? 'cur' : ''}" data-sib="${s.id}"><span class="pn">${esc(s.part_number || '—')}</span><span class="sd">${esc(s.description)}${s.qty != null && Number(s.qty) !== 1 ? ' ×' + esc(s.qty) : ''}</span>${s.damaged ? '<span class="dtag">DMG</span>' : ''}<span class="pill s${STATUSES.indexOf(s.status)}">${esc(s.status)}</span></div>`).join('') : '<div class="hint" style="margin:0 0 4px">Only this part so far.</div>') +
-    `<div class="chips"><button type="button" data-g="add">＋ Add part to this order</button>${openN > 1 ? `<button type="button" data-g="arrived">Mark all ${openN} arrived</button>` : ''}</div>`;
+    `<div class="chips"><button type="button" data-g="add">＋ Add part to this order</button>` +
+    (sib.length > 1 ? ['Ordered','Arrived','Collected'].map(st => cnt(st) ? `<button type="button" data-gs="${st}">All → ${st === 'Collected' ? 'Collected / fitted' : st} (${cnt(st)})</button>` : '').join('') +
+      `<select id="grpOther" style="width:auto;padding:4px 8px;border-radius:16px;font-size:12px"><option value="">Set all to…</option>${STATUSES.map(s => `<option>${s}</option>`).join('')}</select>` : '') +
+    `</div>`;
+}
+// which statuses a part can be bulk-moved from (don't drag fitted/returned parts backwards)
+const GROUP_FROM = {
+  'Ordered': ['To order'], 'Arrived': ['To order','Ordered','Back order'], 'Collected': ['To order','Ordered','Back order','Arrived']
+};
+async function setGroupStatus(r, status, onlyFrom) {
+  let n = 0;
+  for (const s of siblings(r)) {
+    if (s.status === status || (onlyFrom && !onlyFrom.includes(s.status))) continue;
+    if (await updateRow(latest(s.id), { status })) n++;
+  }
+  return n;
 }
 
 // ---- photos ----
@@ -850,9 +918,47 @@ function setEditing(r) {
   $('dlgTitle').textContent = 'Edit order';
   $('delBtn').classList.remove('hidden'); $('dupBtn').classList.remove('hidden');
   $('stamp').textContent = `Added ${fmt(r.created_at)} · last updated ${fmtDT(r.updated_at)}`;
-  renderGroup();
+  showAdded(r); renderGroup();
 }
 function toggleDmg() { $('dmgFields').classList.toggle('hidden', !$('dmgChk').checked); }
+function toggleCloseDates() {
+  const f = $('frm'), s = f.elements.status.value;
+  $('wReturned').classList.toggle('hidden', s !== 'Returned' && !f.elements.returned_date.value);
+  $('wCancelled').classList.toggle('hidden', s !== 'Cancelled' && !f.elements.cancelled_date.value);
+}
+function showAdded(r) { $('addedOut').value = r?.created_at ? fmtDT(r.created_at) : 'On save'; }
+// status picked in the form → fill matching date(s) straight away
+function onStatusChange() {
+  const f = $('frm'), s = f.elements.status.value;
+  if (s === 'To order' && diaryAuto) { f.elements.diary_no.value = ''; if (f.elements.ordered_date.value === today()) f.elements.ordered_date.value = ''; diaryAuto = false; diaryHint(); }
+  for (const k of STATUS_DATES[s] || []) if (!f.elements[k].value) f.elements[k].value = today();
+  if ((s === 'Ordered' || s === 'Back order') && !f.elements.diary_no.value && (!f.elements.ordered_date.value || f.elements.ordered_date.value === today())) { f.elements.diary_no.value = diaryNo(); diaryHint(); }
+  toggleCloseDates();
+}
+function diaryHint() {
+  const v = $('diaryIn').value.trim(), h = $('diaryHint'), d = diaryToDate(v);
+  h.className = 'pnhint'; h.textContent = '';
+  if (!v) return;
+  if (!d) { h.className = 'pnhint warn'; h.textContent = 'Not a diary number (day + time, e.g. 21600)'; return; }
+  h.className = 'pnhint ok'; h.textContent = `→ ${fmt(d.date)}, ${d.time}`;
+}
+// diary no typed → fill ordered date and move status on
+function onDiaryTyped() {
+  const f = $('frm'), d = diaryToDate(f.elements.diary_no.value);
+  diaryHint();
+  if (!d) return;
+  if (!f.elements.ordered_date.value) f.elements.ordered_date.value = d.date;
+  if (f.elements.status.value === 'To order') f.elements.status.value = 'Ordered';
+}
+// date typed in → move status forward to match
+function onDateTyped(field) {
+  const f = $('frm'), s = f.elements.status.value, v = f.elements[field].value;
+  if (!v) return;
+  if (field === 'ordered_date' && s === 'To order') f.elements.status.value = 'Ordered';
+  if (field === 'received_date' && OPEN.includes(s)) f.elements.status.value = 'Arrived';
+  if (field === 'collected_date' && (OPEN.includes(s) || s === 'Arrived')) { f.elements.status.value = 'Collected'; if (!f.elements.received_date.value) f.elements.received_date.value = v; }
+  toggleCloseDates();
+}
 // copy: true = duplicate, 'prefill' = add part to existing order (group = its order_group)
 function openEditor(r, copy, focus, group) {
   const f = $('frm');
@@ -862,15 +968,20 @@ function openEditor(r, copy, focus, group) {
   for (const k of FIELDS) {
     const el = f.elements[k]; if (!el) continue;
     let v = r ? r[k] : null;
-    if (copy === true && ['received_date','reminder_date','reminder_note','reminder_done','order_ref','ordered_date','eta_date','damaged','damage_status','damage_ref','damaged_date','damage_notes'].includes(k)) v = null;
+    if (copy === true && ['diary_no','received_date','collected_date','returned_date','cancelled_date','reminder_date','reminder_note','reminder_done','order_ref','ordered_date','eta_date','damaged','damage_status','damage_ref','damaged_date','damage_notes'].includes(k)) v = null;
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
   }
-  if (!r || copy === true) { f.elements.status.value = 'To order'; }
+  diaryAuto = false;
+  if (!r || copy === true) {
+    // new order = being ordered now: status Ordered, today's date, diary no from the clock
+    f.elements.status.value = 'Ordered'; f.elements.ordered_date.value = today();
+    f.elements.diary_no.value = diaryNo(); diaryAuto = true;
+  }
   if (!editing) { f.elements.ordered_by.value = f.elements.ordered_by.value || ls.get('po_who', ''); if (!r || copy === 'prefill') f.elements.qty.value = 1; }
   $('extraLines').innerHTML = ''; updLinesHint();
   mainLk.reset(); $('fuNote').value = ''; setFuNext('');
   if (r?.part_number && catalog) { const keep = f.elements.description.value; mainLk.hint(r.part_number); if (keep) { f.elements.description.value = keep; mainLk.auto = ''; } }
-  toggleDmg(); renderGroup();
+  toggleDmg(); toggleCloseDates(); showAdded(editing); diaryHint(); renderGroup();
   $('delBtn').classList.toggle('hidden', !editing);
   $('dupBtn').classList.toggle('hidden', !editing);
   $('stamp').textContent = editing ? `Added ${fmt(r.created_at)} · last updated ${fmtDT(r.updated_at)}` : '';
@@ -891,7 +1002,7 @@ function downloadIcs(rec) {
   if (!rec.reminder_date) { toast('Set a reminder date first', true); return; }
   const d = rec.reminder_date.replace(/-/g, ''), d2 = addDays(1, rec.reminder_date).replace(/-/g, '');
   const e = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
-  const details = [rec.reminder_note, rec.part_number && 'Part: ' + rec.part_number, rec.supplier && 'Supplier: ' + rec.supplier, rec.order_ref && 'PO: ' + rec.order_ref, rec.vehicle_reg && 'Reg: ' + rec.vehicle_reg, rec.customer && 'Customer: ' + rec.customer, rec.damaged && 'DAMAGED – ' + (rec.damage_status || '') + (rec.damage_ref ? ' ref ' + rec.damage_ref : ''), location.href.split('?')[0]].filter(Boolean).join('\n');
+  const details = [rec.reminder_note, rec.part_number && 'Part: ' + rec.part_number, rec.supplier && 'Supplier: ' + rec.supplier, rec.diary_no && 'Order no: ' + rec.diary_no, rec.order_ref && 'Supplier ref: ' + rec.order_ref, rec.vehicle_reg && 'Reg: ' + rec.vehicle_reg, rec.customer && 'Customer: ' + rec.customer, rec.damaged && 'DAMAGED – ' + (rec.damage_status || '') + (rec.damage_ref ? ' ref ' + rec.damage_ref : ''), location.href.split('?')[0]].filter(Boolean).join('\n');
   const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//FaoiteApps//Parts Orders//EN','BEGIN:VEVENT',
     `UID:po-${rec.id || Date.now()}-${d}@faoiteapps`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d2}`,
@@ -944,11 +1055,13 @@ $('bellBtn').onclick = async () => {
 
 $('list').addEventListener('click', async e => {
   if (e.target.closest('[data-showall]')) { state.view = 'all'; saveState(); render(); return; }
+  if (e.target.closest('a.tel')) return; // let the phone link dial
   const c = e.target.closest('.card'); if (!c) return;
   const r = rows.find(x => x.id == c.dataset.id); if (!r) return;
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (!act) return openEditor(r);
   e.stopPropagation();
+  if (act.startsWith('g:')) { const st = act.slice(2), n = await setGroupStatus(r, st, GROUP_FROM[st]); toast(`${n} part${n === 1 ? '' : 's'} → ${st}`); return; }
   if (act === 'damage') return openEditor(r, false, 'damage');
   if (act === 'followup') return openEditor(r, false, 'followup');
   if (act === 'remdone') { if (await updateRow(r, {reminder_done: true})) toast('Reminder cleared'); }
@@ -966,17 +1079,33 @@ $('grpBox').addEventListener('click', async e => {
   if (g === 'add') {
     let r = latest(editing.id), grp = r.order_group;
     if (!grp) { grp = uuid(); r = await updateRow(r, { order_group: grp }); if (!r) return; }
-    const pre = pick(r, ['supplier','order_ref','status','vehicle_reg','customer','job_ref','ordered_by','ordered_date','eta_date','received_date']);
+    const pre = pick(r, ['supplier','diary_no','order_ref','status','vehicle_reg','customer','customer_phone','job_ref','ordered_by','ordered_date','eta_date','received_date']);
     $('dlg').close(); openEditor(pre, 'prefill', null, grp);
-  } else if (g === 'arrived') {
-    const id = editing.id;
-    for (const s of siblings(latest(id)).filter(s => OPEN.includes(s.status))) await updateRow(latest(s.id), { status: 'Arrived' });
-    toast('All parts marked arrived');
+  }
+  const gs = e.target.closest('[data-gs]')?.dataset.gs;
+  if (gs) {
+    const id = editing.id, n = await setGroupStatus(latest(id), gs, GROUP_FROM[gs]);
+    toast(`${n} part${n === 1 ? '' : 's'} → ${gs}`);
     $('dlg').close(); openEditor(latest(id));
   }
 });
+$('grpBox').addEventListener('change', async e => {
+  if (e.target.id !== 'grpOther' || !e.target.value) return;
+  const st = e.target.value, id = editing.id, sib = siblings(latest(id));
+  if (!confirm(`Set all ${sib.length} parts on this order to "${st}"?`)) { e.target.value = ''; return; }
+  const n = await setGroupStatus(latest(id), st);
+  toast(`${n} part${n === 1 ? '' : 's'} → ${st}`);
+  $('dlg').close(); openEditor(latest(id));
+});
 
 $('dmgChk').addEventListener('change', toggleDmg);
+$('statusSel').addEventListener('change', onStatusChange);
+$('diaryIn').addEventListener('input', () => { diaryAuto = false; onDiaryTyped(); });
+// keep an untouched auto diary no in step with the clock while a new order is open
+setInterval(() => { if (diaryAuto && $('dlg').open && !editing) { $('diaryIn').value = diaryNo(); diaryHint(); } }, 15000);
+$('diaryNow').onclick = () => { const f = $('frm'); f.elements.diary_no.value = diaryNo(); f.elements.ordered_date.value = today(); if (f.elements.status.value === 'To order') f.elements.status.value = 'Ordered'; diaryHint(); };
+['ordered_date','received_date','collected_date'].forEach(k => $('frm').elements[k].addEventListener('change', () => onDateTyped(k)));
+['returned_date','cancelled_date'].forEach(k => $('frm').elements[k].addEventListener('change', toggleCloseDates));
 
 // photos
 $('photoGrid').addEventListener('click', e => {
@@ -1016,7 +1145,19 @@ $('frm').onsubmit = async e => {
       const a = clean({[k]: data[k]})[k], b = editing[k] ?? null;
       if (BOOLS.includes(k) ? !!a !== !!b : String(a ?? '') !== String(b ?? '')) patch[k] = data[k];
     }
+    const others = siblings(editing).filter(s => s.id !== editing.id);
     ok = Object.keys(patch).length ? await updateRow(editing, patch) : true;
+    if (ok && others.length) {
+      // shared details (reg, customer, phone, refs…) follow to every part on the order
+      const shared = Object.fromEntries(Object.keys(patch).filter(k => SHARED.includes(k)).map(k => [k, patch[k]]));
+      if (Object.keys(shared).length) { for (const s of others) await updateRow(latest(s.id), shared); toast(`Updated on all ${others.length + 1} parts`); }
+      // status change → offer to apply to the rest of the order
+      const differ = others.filter(s => s.status !== patch.status);
+      if (patch.status && differ.length && confirm(`Also set the other ${differ.length} part${differ.length > 1 ? 's' : ''} on this order to "${patch.status}"?`)) {
+        for (const s of differ) await updateRow(latest(s.id), { status: patch.status });
+        toast(`All parts → ${patch.status}`);
+      }
+    }
   } else { const saved = await saveNew(); ok = !!saved; if (saved && saved.length > 1) { $('saveBtn').disabled = false; $('dlg').close(); toast(`Saved ${saved.length} parts on one order`); return; } }
   $('saveBtn').disabled = false;
   if (ok) { $('dlg').close(); toast('Saved'); }
