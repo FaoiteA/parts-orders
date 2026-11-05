@@ -66,6 +66,23 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .qa button{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
 .grp{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin:16px 2px 8px}
 .grp:first-child,.hint+.grp{margin-top:4px}
+.grp.day{font-size:14px;color:var(--text);letter-spacing:.3px;text-transform:none;margin:22px 0 10px;padding:8px 10px;background:var(--card2);border-radius:10px;border-left:4px solid var(--acc);flex-wrap:wrap;row-gap:2px}
+.grp.day:first-child,.hint+.grp.day{margin-top:4px}
+.grp.day::after{display:none}
+.grp.day .pg{color:var(--acc);font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.grp.day b{margin-left:auto;color:var(--mut);font-size:12px;font-weight:500}
+.ocard .ohead{font-weight:600}
+.ohead .mut{color:var(--mut)}
+.osum{font-size:12px;color:var(--mut);margin-top:4px}
+.plines{margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pline{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-size:14px;background:var(--bg)}
+.pline:last-child{border-bottom:none}
+.pline:hover{background:#1a2532}
+.pline .pn{flex:none;font-size:12px;color:var(--mut);min-width:84px}
+.pline .sd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pline .q{color:var(--acc);font-weight:600}
+.pline .dtag{margin:0}
+@media(max-width:420px){.pline .pn{min-width:0;max-width:92px;overflow:hidden;text-overflow:ellipsis}}
 .grp b{font-weight:600;color:var(--acc);letter-spacing:0}
 .grp::after{content:'';flex:1;height:1px;background:var(--line)}
 .empty{text-align:center;color:var(--mut);padding:40px 10px}
@@ -123,9 +140,15 @@ dialog::backdrop{background:#000a}
 .pvbar{display:flex;gap:8px;padding:10px;justify-content:space-between}
 .catinfo{font-size:14px;line-height:1.6}
 .catinfo .mut{color:var(--mut);font-size:12px}
+.login{position:fixed;inset:0;background:var(--bg);z-index:40;display:flex;align-items:center;justify-content:center;padding:16px}
+.lbox{width:min(360px,100%)}
+.lbox h1 span{color:var(--acc)}
+.lbox label{font-size:12px;color:var(--mut);display:block;margin-bottom:3px}
+.lerr{min-height:20px;font-size:13px;color:var(--acc);margin:8px 0 4px}
+.lnk{background:none;border:none;color:var(--mut);text-decoration:underline;font-size:13px;margin-top:14px;cursor:pointer;padding:0}
 #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1f2937;border:1px solid var(--line);padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90vw;text-align:center}
 #toast.show{opacity:1}#toast.err{border-color:var(--red)}
-@media(max-width:420px){.fb{grid-template-columns:1fr}}
+@media(max-width:420px){.fb{grid-template-columns:1fr}.top{gap:5px}.top .icon{width:34px;height:34px}h1{font-size:16px}.sync{font-size:10px;max-width:58px;white-space:normal;line-height:1.1}}
 </style>
 </head>
 <body>
@@ -134,6 +157,7 @@ dialog::backdrop{background:#000a}
     <h1>Parts <span>Orders</span></h1>
     <span id="sync" class="sync">…</span>
     <button id="catBtn" class="icon" title="Price file">📄</button>
+    <button id="acctBtn" class="icon" title="Account">👤</button>
     <button id="bellBtn" class="icon" title="Phone notifications">🔔</button>
     <button id="refreshBtn" class="icon" title="Refresh">⟳</button>
   </div>
@@ -150,6 +174,7 @@ dialog::backdrop{background:#000a}
       <option value="returned_date">Returned</option><option value="cancelled_date">Cancelled</option><option value="reminder_date">Reminder</option>
       <option value="damaged_date">Damaged</option><option value="created_at">Created</option></select></div>
     <div><label>Sort</label><select id="fSort">
+      <option value="diary:d">Diary – by order day</option>
       <option value="updated_at:d">Last updated</option><option value="created_at:d">Newest added</option>
       <option value="eta_date:a">ETA (soonest)</option><option value="reminder_date:a">Reminder (soonest)</option>
       <option value="ordered_date:d">Order date (newest)</option><option value="received_date:d">Received (newest)</option>
@@ -285,6 +310,36 @@ dialog::backdrop{background:#000a}
     </div>
   </div>
 </dialog>
+<dialog id="acctDlg">
+  <div class="dh"><h2>Account</h2><button type="button" class="icon" id="acctX">✕</button></div>
+  <div class="fb">
+    <div class="full catinfo">Signed in as<br><b id="acctEmail"></b></div>
+    <div class="full" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn" id="acctPw">Change password</button>
+      <button type="button" class="btn dan" id="signOut">Sign out</button>
+    </div>
+    <div class="full catinfo mut">Signing out clears orders saved on this device.</div>
+  </div>
+</dialog>
+
+<div id="login" class="login hidden">
+  <div class="lbox">
+    <h1 style="font-size:24px;margin:0 0 4px">Parts <span>Orders</span></h1>
+    <div class="catinfo mut" style="margin-bottom:16px">Sign in to continue</div>
+    <form id="loginForm" autocomplete="on">
+      <label>Email</label><input id="liEmail" type="email" autocomplete="username" required>
+      <label style="margin-top:10px">Password</label><input id="liPw" type="password" autocomplete="current-password" required>
+      <div class="lerr" id="loginErr"></div>
+      <button class="btn pri" id="liBtn" style="width:100%;margin-top:6px">Sign in</button>
+      <button type="button" class="lnk" id="liForgot">Forgot password</button>
+    </form>
+    <form id="resetForm" class="hidden">
+      <label>New password</label><input id="newPw" type="password" autocomplete="new-password" minlength="8" required>
+      <div class="lerr" id="resetErr"></div>
+      <button class="btn pri" style="width:100%;margin-top:6px">Save new password</button>
+    </form>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -327,7 +382,9 @@ const BOOLS = ['damaged','reminder_done'];
 const SHARED = ['diary_no','order_ref','supplier','vehicle_reg','customer','customer_phone','job_ref','ordered_by'];
 const SEARCH_FIELDS = ['diary_no','customer_phone','part_number','description','supplier','order_ref','customer','vehicle_reg','job_ref','notes','reminder_note','ordered_by','status','damage_status','damage_ref','damage_notes'];
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// own session key so signing in here never changes how Stock Take (same domain + project) talks to Supabase
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'parts-orders-auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+let authed = false, userEmail = '';
 const $ = id => document.getElementById(id);
 const ls = {get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -336,7 +393,16 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmt = d => { if (!d) return ''; const x = new Date(d.length === 10 ? d + 'T12:00:00' : d); const o = {day:'numeric',month:'short'}; if (x.getFullYear() !== new Date().getFullYear()) o.year = '2-digit'; return x.toLocaleDateString('en-IE', o); };
 const fmtDT = d => new Date(d).toLocaleString('en-IE', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const compact = s => s.replace(/[\s\-\/.]/g, '');
-const photoUrl = p => sb.storage.from(BUCKET).getPublicUrl(p).data.publicUrl;
+// photos are private: fetch short-lived signed links (cached ~50 min)
+const signed = new Map();
+async function signUrls(paths) {
+  const now = Date.now(), need = paths.filter(p => !(signed.get(p)?.exp > now));
+  if (need.length) {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+    if (!error) for (const d of data || []) if (d.signedUrl) signed.set(d.path, { url: d.signedUrl, exp: now + 50 * 60000 });
+  }
+  return paths.map(p => signed.get(p)?.url || '');
+}
 
 // ---- tiny IndexedDB key/value (price file cache – too big for localStorage) ----
 const idb = {
@@ -407,7 +473,8 @@ const supersededBy = desc => { const m = /^NOW\s+([A-Z0-9.\-\/]+)/i.exec(desc ||
 // CATALOG-END
 
 let rows = [];
-let state = Object.assign({view:'open', q:'', status:'', supplier:'', dateField:'ordered_date', from:'', to:'', sort:'updated_at:d'}, ls.get('po_state', {}));
+let state = Object.assign({view:'open', q:'', status:'', supplier:'', dateField:'ordered_date', from:'', to:'', sort:'diary:d'}, ls.get('po_state', {}));
+if (!state.v2) { state.sort = 'diary:d'; state.v2 = 1; saveState(); } // one-off: switch existing devices to the diary layout
 let editing = null;
 let loading = false;
 let catalog = null, catIdx = null;
@@ -545,6 +612,14 @@ function matchFilters(r) {
 }
 function sorter() {
   const [f, dir] = state.sort.split(':');
+  // Diary: newest order day first, not-yet-ordered at the top, then by diary no (time) within the day
+  if (f === 'diary') return (a, b) => {
+    const x = a.ordered_date || '', y = b.ordered_date || '';
+    if (x !== y) { if (!x) return -1; if (!y) return 1; return y.localeCompare(x); }
+    const dx = +(a.diary_no || 0), dy = +(b.diary_no || 0);
+    if (dx !== dy) return dy - dx;
+    return b.id - a.id;
+  };
   return (a, b) => {
     const x = a[f] ?? '', y = b[f] ?? '';
     if (x === '' && y !== '') return 1;
@@ -576,7 +651,7 @@ function card(r) {
     r.customer_phone && `<a class="tel" href="tel:${esc(String(r.customer_phone).replace(/[^\d+]/g, ''))}">📞 ${esc(r.customer_phone)}</a>`,
     r.job_ref && `Job ${esc(r.job_ref)}`
   ].filter(Boolean).join(' · ');
-  const nP = (r.photos || []).length, nF = (r.followups || []).length, nG = r.order_group ? gCount.get(r.order_group) || 0 : 0;
+  const nP = (r.photos || []).length, nF = (r.followups || []).length, nG = gkey(r) ? gCount.get(gkey(r)) || 0 : 0;
   const dates = [
     nG > 1 && `<span>📦 ${nG}-part order</span>`,
     !r.ordered_date && r.created_at && `<span>Added ${fmt(r.created_at)}</span>`,
@@ -592,7 +667,7 @@ function card(r) {
   ].filter(Boolean).join('');
   const qa = [];
   if (nG > 1) {
-    const sib = rows.filter(x => x.order_group === r.order_group);
+    const sib = siblings(r);
     if (r.status === 'To order' && sib.filter(s => s.status === 'To order').length > 1) qa.push(`<button data-act="g:Ordered">📦 All ordered</button>`);
     else if (OPEN.includes(r.status) && sib.filter(s => OPEN.includes(s.status)).length > 1) qa.push(`<button data-act="g:Arrived">📦 All arrived</button>`);
     else if (r.status === 'Arrived' && sib.filter(s => s.status === 'Arrived').length > 1) qa.push(`<button data-act="g:Collected">📦 All collected</button>`);
@@ -615,8 +690,70 @@ function card(r) {
   </article>`;
 }
 
+// One card for a whole order (2+ parts showing)
+function orderCard(it) {
+  const rs = it.rows.slice().sort((a, b) => a.id - b.id), r0 = rs[0];
+  const all = siblings(r0).length ? siblings(r0) : rs;
+  const minSi = Math.min(...all.map(s => STATUSES.indexOf(s.status)));
+  const counts = STATUSES.map(st => [st, all.filter(s => s.status === st).length]).filter(([, n]) => n);
+  const summary = counts.map(([st, n]) => `${n} ${st === 'Collected' ? 'Fitted' : st}`).join(' · ');
+  const anyOd = all.some(isOverdue), dmgN = all.filter(isDamagedOpen).length;
+  const remDue = all.filter(isRemDue), remUp = all.filter(isRemUpcoming);
+  const rem = remDue[0] || remUp[0];
+  const openEta = all.filter(s => OPEN.includes(s.status) && s.eta_date).map(s => s.eta_date).sort()[0];
+  const nP = all.reduce((n, s) => n + (s.photos || []).length, 0);
+  const head = [
+    r0.diary_no && `<span class="dno">#${esc(r0.diary_no)}</span>`,
+    r0.order_ref && `<span>Sup ref <b>${esc(r0.order_ref)}</b></span>`,
+    r0.supplier && esc(r0.supplier)
+  ].filter(Boolean).join(' · ') || '<span class="mut">Order</span>';
+  const cust = [
+    r0.vehicle_reg && `<span class="reg">${esc(r0.vehicle_reg)}</span>`,
+    r0.customer && esc(r0.customer),
+    r0.customer_phone && `<a class="tel" href="tel:${esc(String(r0.customer_phone).replace(/[^\d+]/g, ''))}">📞 ${esc(r0.customer_phone)}</a>`,
+    r0.job_ref && `Job ${esc(r0.job_ref)}`
+  ].filter(Boolean).join(' · ');
+  const lines = rs.map(s => { const si = STATUSES.indexOf(s.status); return `<div class="pline" data-id="${s.id}">
+      <span class="pn">${esc(s.part_number || '—')}</span><span class="sd">${esc(s.description)}${s.qty != null && Number(s.qty) !== 1 ? ` <span class="q">×${esc(s.qty)}</span>` : ''}</span>
+      ${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}<span class="pill s${si}">${esc(s.status)}</span></div>`; }).join('');
+  const hidden = all.length - rs.length;
+  const dates = [
+    r0.ordered_date && `<span>Ordered ${fmt(r0.ordered_date)}</span>`,
+    openEta && `<span class="${anyOd ? 'red' : ''}">ETA ${fmt(openEta)}${anyOd ? ' · overdue' : ''}</span>`,
+    rem && `<span class="${remDue.length ? 'amber' : ''}">🔔 ${fmt(rem.reminder_date)}${rem.reminder_note ? ' – ' + esc(rem.reminder_note) : ''}</span>`,
+    dmgN && `<span class="red">💥 ${dmgN} damaged</span>`,
+    nP && `<span>📷 ${nP}</span>`
+  ].filter(Boolean).join('');
+  const qa = [];
+  if (all.some(s => s.status === 'To order')) qa.push(`<button data-act="g:Ordered">📦 All ordered</button>`);
+  if (all.some(s => OPEN.includes(s.status))) qa.push(`<button data-act="g:Arrived">📦 All arrived</button>`);
+  if (all.some(s => s.status === 'Arrived')) qa.push(`<button data-act="g:Collected">📦 All fitted</button>`);
+  if (remDue.length) qa.push(`<button data-act="remdone" data-rid="${remDue[0].id}">✓ Reminder done</button><button data-act="snooze" data-rid="${remDue[0].id}">Snooze 1 day</button>`);
+  qa.push(`<button data-act="g:add">＋ Add part</button>`);
+  return `<article class="card ocard st${minSi} ${anyOd ? 'od' : ''} ${dmgN ? 'dmg' : ''}" data-id="${r0.id}">
+    <div class="row1"><span class="desc ohead">${head}</span><span class="pill">${all.length} parts</span></div>
+    ${cust ? `<div class="meta">${cust}</div>` : ''}
+    <div class="osum">${summary}</div>
+    <div class="plines">${lines}</div>
+    ${hidden > 0 ? `<div class="hint" style="margin:4px 0 0">+${hidden} other part${hidden > 1 ? 's' : ''} on this order not shown here</div>` : ''}
+    ${dates ? `<div class="dates">${dates}</div>` : ''}
+    <div class="qa">${qa.join('')}</div>
+  </article>`;
+}
+// group rows into orders, keeping the sorted position of each order's first part
+function buildItems(list) {
+  const out = [], m = new Map();
+  for (const r of list) {
+    const k = gkey(r);
+    if (k && m.has(k)) { m.get(k).rows.push(r); continue; }
+    const it = { k, rows: [r] }; out.push(it); if (k) m.set(k, it);
+  }
+  return out;
+}
+const itemHtml = it => it.rows.length > 1 ? orderCard(it) : card(it.rows[0]);
+
 function render() {
-  gCount = new Map(); for (const r of rows) if (r.order_group) gCount.set(r.order_group, (gCount.get(r.order_group) || 0) + 1);
+  gCount = new Map(); for (const r of rows) { const k = gkey(r); if (k) gCount.set(k, (gCount.get(k) || 0) + 1); }
   for (const v of Object.keys(VIEWS)) { const el = $('c_' + v); if (el) { const n = rows.filter(VIEWS[v]).length; el.textContent = n ? ' ' + n : ''; } }
   document.querySelectorAll('#views button').forEach(b => b.classList.toggle('on', b.dataset.v === state.view));
   $('filterBtn').classList.toggle('on', !!(state.status || state.supplier || state.from || state.to));
@@ -632,7 +769,7 @@ function render() {
 }
 
 // ---- date headings (follow the current sort field) ----
-const DATE_SORTS = ['updated_at','created_at','ordered_date','eta_date','reminder_date','received_date','collected_date','returned_date','cancelled_date','damaged_date'];
+const DATE_SORTS = ['diary','updated_at','created_at','ordered_date','eta_date','reminder_date','received_date','collected_date','returned_date','cancelled_date','damaged_date'];
 const localDay = v => !v ? null : String(v).length === 10 ? String(v) : new Date(v).toLocaleDateString('en-CA');
 function weekStart(ds) { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toLocaleDateString('en-CA'); }
 function bucket(ds) {
@@ -648,12 +785,27 @@ function bucket(ds) {
   const d = new Date(ds + 'T12:00:00');
   return d.toLocaleDateString('en-IE', d.getFullYear() === new Date().getFullYear() ? {month: 'long'} : {month: 'long', year: 'numeric'});
 }
+// day of year = diary page number
+const pageNo = ds => { const d = new Date(ds + 'T12:00:00'); return Math.round((d - new Date(d.getFullYear(), 0, 1, 12)) / 86400000) + 1; };
+function dayHead(ds, diary) {
+  if (!ds) return { label: diary ? 'Not ordered yet' : 'No date', page: '' };
+  const d = new Date(ds + 'T12:00:00'), t = today();
+  const o = { weekday: 'short', day: 'numeric', month: 'short' }; if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+  const nice = d.toLocaleDateString('en-IE', o).replace(',', '');
+  const rel = ds === t ? 'Today' : ds === addDays(-1) ? 'Yesterday' : ds === addDays(1) ? 'Tomorrow' : '';
+  return { label: rel ? `${rel} · ${nice}` : nice, page: diary ? `Page ${pageNo(ds)}` : '' };
+}
 function withHeadings(list) {
-  const f = state.sort.split(':')[0];
-  if (!DATE_SORTS.includes(f)) return list.map(card).join('');
-  const groups = [];
-  for (const r of list) { const b = bucket(localDay(r[f])); if (!groups.length || groups[groups.length - 1].b !== b) groups.push({b, items: []}); groups[groups.length - 1].items.push(r); }
-  return groups.map(g => `<h3 class="grp">${esc(g.b)}<b>${g.items.length}</b></h3>` + g.items.map(card).join('')).join('');
+  const items = buildItems(list);
+  const f0 = state.sort.split(':')[0];
+  if (!DATE_SORTS.includes(f0)) return items.map(itemHtml).join('');
+  const f = f0 === 'diary' ? 'ordered_date' : f0, diary = f0 === 'diary' || f0 === 'ordered_date';
+  const days = [];
+  for (const it of items) { const ds = localDay(it.rows[0][f]); if (!days.length || days[days.length - 1].ds !== ds) days.push({ ds, items: [] }); days[days.length - 1].items.push(it); }
+  return days.map(g => {
+    const h = dayHead(g.ds, diary), parts = g.items.reduce((n, it) => n + it.rows.length, 0), orders = g.items.length;
+    return `<h3 class="grp day"><span>${esc(h.label)}</span>${h.page ? `<span class="pg">${h.page}</span>` : ''}<b>${orders} order${orders > 1 ? 's' : ''}${parts > orders ? ` · ${parts} parts` : ''}</b></h3>` + g.items.map(itemHtml).join('');
+  }).join('');
 }
 
 function refreshSuppliers() {
@@ -702,9 +854,9 @@ async function loadCatalog(force) {
     if (!f) { if (cached) { await idb.set('catalog', null); setCatalog(null); } return; }
     const stamp = f.updated_at || f.created_at;
     if (!force && cached && cached.stamp === stamp) return;
-    const res = await fetch(photoUrl('catalog/catalog.json') + '?v=' + encodeURIComponent(stamp));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const cat = await res.json(); cat.stamp = stamp;
+    const { data: blob, error: dErr } = await sb.storage.from(BUCKET).download('catalog/catalog.json');
+    if (dErr) throw dErr;
+    const cat = JSON.parse(await blob.text()); cat.stamp = stamp;
     await idb.set('catalog', cat); setCatalog(cat);
     if (force) toast(`Price file: ${cat.items.length.toLocaleString()} parts`);
   } catch (e) { console.warn('catalog', e); if (force) toast('Could not download price file: ' + (e.message || e), true); }
@@ -772,7 +924,9 @@ function makeLookup(pn, sug, hint, desc) {
 
 // ---- multiple parts per order ----
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const siblings = r => r?.order_group ? rows.filter(x => x.order_group === r.order_group).sort((a, b) => a.id - b.id) : [];
+// parts belong to the same order if they share a diary no (or, before one is set, the same order group)
+const gkey = r => r?.diary_no ? 'd:' + String(r.diary_no).trim() : r?.order_group ? 'g:' + r.order_group : null;
+const siblings = r => { const k = gkey(r); return k ? rows.filter(x => gkey(x) === k).sort((a, b) => a.id - b.id) : []; };
 function addLine() {
   const el = document.createElement('div'); el.className = 'line';
   el.innerHTML = `<div class="pnwrap"><div class="pnbox"><input class="l-pn" placeholder="Part no" autocapitalize="characters" spellcheck="false"><div class="sug hidden"></div></div><div class="pnhint"></div></div>
@@ -855,8 +1009,9 @@ async function compress(file) {
 }
 function renderPhotos() {
   const r = editing && latest(editing.id), ph = r?.photos || [];
-  $('photoGrid').innerHTML = ph.map(p => `<img src="${esc(photoUrl(p))}" data-p="${esc(p)}" loading="lazy" alt="">`).join('') +
+  $('photoGrid').innerHTML = ph.map(p => `<img data-p="${esc(p)}" alt="">`).join('') +
     `<div class="padd" id="photoAdd"><b>＋</b>${ph.length ? 'Add' : 'Add photo'}</div>`;
+  if (ph.length) signUrls(ph).then(urls => urls.forEach((u, i) => { const img = $('photoGrid').querySelector(`img[data-p="${CSS.escape(ph[i])}"]`); if (img && u) img.src = u; }));
 }
 async function ensureSaved() {
   if (editing) return true;
@@ -901,7 +1056,7 @@ async function addFollowup() {
   if (!note) return toast('Type a follow-up note first', true);
   if (!(await ensureSaved())) return;
   const cur = latest(editing.id);
-  const patch = { followups: [...(cur.followups || []), { at: new Date().toISOString(), by: ls.get('po_who', ''), note }] };
+  const patch = { followups: [...(cur.followups || []), { at: new Date().toISOString(), by: ls.get('po_who', '') || userEmail.split('@')[0], note }] };
   if (fuNext) { patch.reminder_date = addDays(+fuNext); patch.reminder_note = note.length > 60 ? note.slice(0, 57) + '…' : note; patch.reminder_done = false; }
   const row = await updateRow(cur, patch);
   if (!row) return;
@@ -1017,7 +1172,7 @@ function downloadIcs(rec) {
 function exportCsv() {
   const list = filtered(state.view).sort(sorter());
   const cols = ['id', 'order_group', ...FIELDS, 'photos', 'followups', 'created_at', 'updated_at'];
-  const val = (r, c) => c === 'photos' ? (r.photos || []).map(photoUrl).join(' ') : c === 'followups' ? (r.followups || []).map(f => `${fmtDT(f.at)}${f.by ? ' ' + f.by : ''}: ${f.note}`).join(' | ') : r[c];
+  const val = (r, c) => c === 'photos' ? (r.photos || []).length : c === 'followups' ? (r.followups || []).map(f => `${fmtDT(f.at)}${f.by ? ' ' + f.by : ''}: ${f.note}`).join(' | ') : r[c];
   const q = v => { v = v ?? ''; v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   const csv = [cols.join(','), ...list.map(r => cols.map(c => q(val(r, c))).join(','))].join('\r\n');
   const a = document.createElement('a');
@@ -1057,17 +1212,29 @@ $('list').addEventListener('click', async e => {
   if (e.target.closest('[data-showall]')) { state.view = 'all'; saveState(); render(); return; }
   if (e.target.closest('a.tel')) return; // let the phone link dial
   const c = e.target.closest('.card'); if (!c) return;
-  const r = rows.find(x => x.id == c.dataset.id); if (!r) return;
-  const act = e.target.closest('[data-act]')?.dataset.act;
+  const btn = e.target.closest('[data-act]'), act = btn?.dataset.act;
+  const pl = e.target.closest('.pline');
+  if (!act && pl) { const s = latest(+pl.dataset.id); if (s) openEditor(s); return; } // a part line in an order card
+  let r = rows.find(x => x.id == c.dataset.id); if (!r) return;
   if (!act) return openEditor(r);
   e.stopPropagation();
-  if (act.startsWith('g:')) { const st = act.slice(2), n = await setGroupStatus(r, st, GROUP_FROM[st]); toast(`${n} part${n === 1 ? '' : 's'} → ${st}`); return; }
+  if (btn.dataset.rid) r = latest(+btn.dataset.rid) || r;
+  if (act === 'g:add') return addPartTo(r);
+  if (act.startsWith('g:')) { const st = act.slice(2), n = await setGroupStatus(r, st, GROUP_FROM[st]); toast(`${n} part${n === 1 ? '' : 's'} → ${st === 'Collected' ? 'Fitted' : st}`); return; }
   if (act === 'damage') return openEditor(r, false, 'damage');
   if (act === 'followup') return openEditor(r, false, 'followup');
   if (act === 'remdone') { if (await updateRow(r, {reminder_done: true})) toast('Reminder cleared'); }
   else if (act === 'snooze') { if (await updateRow(r, {reminder_date: addDays(1)})) toast('Snoozed to tomorrow'); }
   else if (await updateRow(r, {status: act})) toast(`${r.description} → ${act}`);
 });
+
+// open a new-part form pre-filled with this order's shared details
+async function addPartTo(r) {
+  let grp = r.order_group;
+  if (!grp) { grp = uuid(); r = await updateRow(r, { order_group: grp }); if (!r) return; }
+  const pre = pick(r, ['supplier','diary_no','order_ref','status','vehicle_reg','customer','customer_phone','job_ref','ordered_by','ordered_date','eta_date','received_date']);
+  openEditor(pre, 'prefill', null, grp);
+}
 
 // part number lookup + extra lines
 mainLk = makeLookup($('pnIn'), $('pnSug'), $('pnHint'), $('descIn'));
@@ -1076,12 +1243,7 @@ $('grpBox').addEventListener('click', async e => {
   const g = e.target.closest('[data-g]')?.dataset.g;
   const sibEl = e.target.closest('[data-sib]');
   if (!g && sibEl) { const s = latest(+sibEl.dataset.sib); if (s && s.id !== editing.id) { $('dlg').close(); openEditor(s); } return; }
-  if (g === 'add') {
-    let r = latest(editing.id), grp = r.order_group;
-    if (!grp) { grp = uuid(); r = await updateRow(r, { order_group: grp }); if (!r) return; }
-    const pre = pick(r, ['supplier','diary_no','order_ref','status','vehicle_reg','customer','customer_phone','job_ref','ordered_by','ordered_date','eta_date','received_date']);
-    $('dlg').close(); openEditor(pre, 'prefill', null, grp);
-  }
+  if (g === 'add') { $('dlg').close(); return addPartTo(latest(editing.id)); }
   const gs = e.target.closest('[data-gs]')?.dataset.gs;
   if (gs) {
     const id = editing.id, n = await setGroupStatus(latest(id), gs, GROUP_FROM[gs]);
@@ -1111,7 +1273,8 @@ $('diaryNow').onclick = () => { const f = $('frm'); f.elements.diary_no.value = 
 $('photoGrid').addEventListener('click', e => {
   if (e.target.closest('#photoAdd')) return $('photoIn').click();
   const img = e.target.closest('img[data-p]'); if (!img) return;
-  pvPath = img.dataset.p; $('pvImg').src = photoUrl(pvPath); $('pvOpen').href = photoUrl(pvPath); $('pv').showModal();
+  pvPath = img.dataset.p; $('pvImg').src = img.src || ''; $('pvOpen').href = img.src || '#'; $('pv').showModal();
+  signUrls([pvPath]).then(([u]) => { if (u) { $('pvImg').src = u; $('pvOpen').href = u; } });
 });
 $('photoIn').addEventListener('change', e => { const files = [...e.target.files]; e.target.value = ''; addPhotos(files); });
 $('pvClose').onclick = () => $('pv').close();
@@ -1179,13 +1342,68 @@ $('catClear').onclick = async () => {
   await idb.set('catalog', null); setCatalog(null); toast('Price file cleared');
 };
 
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !$('dlg').open) load(true); });
-setInterval(() => { if (document.visibilityState === 'visible' && !$('dlg').open) load(true); }, 60000);
+document.addEventListener('visibilitychange', () => { if (authed && document.visibilityState === 'visible' && !$('dlg').open) load(true); });
+setInterval(() => { if (authed && document.visibilityState === 'visible' && !$('dlg').open) load(true); }, 60000);
+
+// ---- sign in ----
+function showLogin(mode) {
+  authed = false;
+  $('login').classList.remove('hidden');
+  $('loginForm').classList.toggle('hidden', mode === 'reset');
+  $('resetForm').classList.toggle('hidden', mode !== 'reset');
+  $('loginErr').textContent = ''; $('resetErr').textContent = '';
+  setTimeout(() => (mode === 'reset' ? $('newPw') : $('liEmail')).focus(), 50);
+}
+function startApp(session) {
+  authed = true; userEmail = session.user.email || '';
+  $('login').classList.add('hidden');
+  $('acctEmail').textContent = userEmail;
+  rows = ls.get('po_cache', []); render(); load(); loadCatalog(false);
+}
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  const btn = $('liBtn'); btn.disabled = true; $('loginErr').textContent = '';
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('liEmail').value.trim(), password: $('liPw').value });
+  btn.disabled = false;
+  if (error) { $('loginErr').textContent = error.message === 'Invalid login credentials' ? 'Wrong email or password' : error.message; return; }
+  $('liPw').value = ''; startApp(data.session);
+};
+$('liForgot').onclick = async () => {
+  const email = $('liEmail').value.trim();
+  if (!email) { $('loginErr').textContent = 'Type your email first, then tap Forgot password'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  $('loginErr').textContent = error ? error.message : 'Check your email for a reset link';
+};
+$('resetForm').onsubmit = async e => {
+  e.preventDefault();
+  const pw = $('newPw').value;
+  if (pw.length < 8) { $('resetErr').textContent = 'Use at least 8 characters'; return; }
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  if (error) { $('resetErr').textContent = error.message; return; }
+  $('newPw').value = ''; toast('Password changed'); history.replaceState(null, '', location.pathname);
+  const { data: s } = await sb.auth.getSession(); if (s.session) startApp(s.session); else showLogin();
+};
+$('acctBtn').onclick = () => $('acctDlg').showModal();
+$('acctX').onclick = () => $('acctDlg').close();
+$('signOut').onclick = async () => {
+  await sb.auth.signOut();
+  try { localStorage.removeItem('po_cache'); localStorage.removeItem('po_notified'); } catch (e) {}
+  rows = []; render(); $('acctDlg').close(); showLogin();
+};
+$('acctPw').onclick = () => { $('acctDlg').close(); showLogin('reset'); };
+sb.auth.onAuthStateChange((ev, session) => {
+  if (ev === 'PASSWORD_RECOVERY') showLogin('reset');
+  else if (ev === 'SIGNED_OUT') { if (authed) showLogin(); }
+});
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(console.warn);
 
-if (SUPABASE_KEY.startsWith('PASTE')) { setSync('No key', 'bad'); rows = ls.get('po_cache', []); render(); toast('Add your Supabase anon key in index.html', true); }
-else { rows = ls.get('po_cache', []); render(); load(); loadCatalog(false); }
+(async () => {
+  const recovering = /type=recovery/.test(location.hash);
+  const { data } = await sb.auth.getSession();
+  if (recovering) return; // PASSWORD_RECOVERY event shows the new-password form
+  if (data.session) startApp(data.session); else showLogin();
+})();
 </script>
 </body>
 </html>
