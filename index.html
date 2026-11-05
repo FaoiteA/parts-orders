@@ -90,6 +90,7 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .ptools button,.pjump{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text)}
 .pjump{display:flex;align-items:center;gap:4px;padding:2px 4px 2px 10px}
 .pjump input{width:auto;padding:3px 6px;font-size:12px;border:none;background:transparent}
+.ltitle{font-weight:700;font-size:14px;margin-left:4px}
 .achips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .ptools .achip{background:#2a1f0a;border-color:#6b4a12;color:#fcd34d}
 .ptools .achip[data-goview="overdue"],.ptools .achip[data-goview="damaged"]{background:#2a1215;border-color:#6b2328;color:#fca5a5}
@@ -786,7 +787,7 @@ function render() {
   for (const v of Object.keys(VIEWS)) { const el = $('c_' + v); if (el) { const n = rows.filter(VIEWS[v]).length; el.textContent = n ? ' ' + n : ''; } }
   document.querySelectorAll('#views button').forEach(b => b.classList.toggle('on', b.dataset.v === state.view));
   $('filterBtn').classList.toggle('on', !!(state.status || state.supplier || state.from || state.to));
-  const list = filtered(state.view).sort(sorter());
+  let list = filtered(state.view).sort(sorter());
   let hint = '';
   if (state.q || state.status || state.supplier || state.from || state.to) {
     const total = filtered('all').length;
@@ -794,11 +795,24 @@ function render() {
     if (state.view !== 'all' && total > list.length) hint += ` · ${total - list.length} more in other views – <a data-showall>show all</a>`;
   }
   const hintHtml = hint ? `<div class="hint">${hint}</div>` : '';
-  if (state.mode === 'pages') { $('list').innerHTML = hintHtml + renderPages(list); pageAnim = ''; return; }
+  const searching = !!(state.q || state.status || state.supplier || state.from || state.to);
+  if (state.mode === 'pages' && !ACTION_VIEWS.includes(state.view) && !searching) { $('list').innerHTML = hintHtml + renderPages(list); pageAnim = ''; return; }
+  if (state.mode === 'pages') {
+    // action tabs + searches: show every match across all days, with a way back to the diary page
+    if (searching && !ACTION_VIEWS.includes(state.view)) { list = filtered('all').sort(sorter()); hint = ''; } // diary search looks through everything
+    const hintHtml = hint ? `<div class="hint">${hint}</div>` : '';
+    const parts = list.length, orders = buildItems(list).length;
+    const title = searching ? 'Search results' : VIEW_TITLES[state.view];
+    $('list').innerHTML = `<div class="ptools"><button data-backdiary>‹ Back to diary</button><span class="ltitle">${title} · ${orders} order${orders === 1 ? '' : 's'}${parts > orders ? ` · ${parts} parts` : ''}</span>${alertChips()}</div>` + hintHtml +
+      (list.length ? withHeadings(list) : `<div class="empty">Nothing here.</div>`);
+    return;
+  }
   $('list').innerHTML = `<div class="ptools"><button data-mode="pages">📖 Page view</button>${alertChips()}</div>` + hintHtml +
     (list.length ? withHeadings(list) : `<div class="empty">${rows.length ? 'Nothing here.' : 'No orders yet – tap ＋ to add one.'}</div>`);
 }
 
+const ACTION_VIEWS = ['overdue','reminders','damaged','upcoming'];
+const VIEW_TITLES = { overdue: '⚠ Overdue', reminders: '🔔 Reminders due', damaged: '💥 Damaged', upcoming: '🔔 Upcoming reminders' };
 // small alert chips (replaces the old banner) – tap to open that tab
 function alertChips() {
   const due = rows.filter(isRemDue).length, od = rows.filter(isOverdue).length, dm = rows.filter(isDamagedOpen).length;
@@ -1264,6 +1278,13 @@ window.addEventListener('resize', setHH); setHH();
 // page turning: buttons, date jump, swipe, arrow keys
 $('list').addEventListener('click', e => {
   const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
+  if (e.target.closest('[data-backdiary]')) {
+    e.stopImmediatePropagation();
+    if (ACTION_VIEWS.includes(state.view)) state.view = 'open';
+    Object.assign(state, { q: '', status: '', supplier: '', from: '', to: '' });
+    ['q','fStatus','fSupplier','fFrom','fTo'].forEach(i => $(i).value = '');
+    saveState(); render(); window.scrollTo(0, 0); return;
+  }
   const gv = e.target.closest('[data-goview]'); if (gv) { e.stopImmediatePropagation(); state.view = gv.dataset.goview; saveState(); render(); window.scrollTo(0, 0); return; }
   const md = e.target.closest('[data-mode]'); if (md) { e.stopImmediatePropagation(); state.mode = md.dataset.mode; saveState(); render(); window.scrollTo(0, 0); }
 }, true);
