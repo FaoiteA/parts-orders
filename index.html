@@ -40,7 +40,14 @@ input[type=date]{color-scheme:dark}
 .views button.warn b{color:var(--red)}
 .views button.on.warn b{color:#111}
 .banner{margin:10px 12px 0;padding:10px 12px;border-radius:10px;background:#3a2a07;border:1px solid var(--acc);color:#fde68a;cursor:pointer;font-size:14px}
-main{padding:10px 12px 100px;max-width:900px;margin:0 auto}
+main{padding:10px 12px 100px;margin:0 auto}
+/* wide screens: orders side by side in columns, headings/nav span the full width */
+@media(min-width:900px){
+  main{padding:12px 20px 100px}
+  #list,.pbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));column-gap:14px;align-items:start}
+  #list>*:not(.card),.pbody>*:not(.card){grid-column:1/-1}
+  .views button.warn b{font-weight:700}
+}
 .hint{color:var(--mut);font-size:13px;margin:4px 2px 10px}
 .hint a{color:var(--acc);cursor:pointer;text-decoration:underline}
 .card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
@@ -873,17 +880,8 @@ function refreshSuppliers() {
 
 // ---- reminders / notifications ----
 async function checkReminders() {
-  const due = rows.filter(isRemDue), od = rows.filter(isOverdue), dm = rows.filter(isDamagedOpen);
-  const b = $('banner');
-  if (due.length || od.length || dm.length) {
-    const parts = [];
-    if (due.length) parts.push(`🔔 ${due.length} reminder${due.length > 1 ? 's' : ''} due`);
-    if (od.length) parts.push(`⚠ ${od.length} overdue`);
-    if (dm.length) parts.push(`💥 ${dm.length} damaged open`);
-    b.innerHTML = parts.join(' &nbsp;·&nbsp; ') + ' – tap to view';
-    b.dataset.v = due.length ? 'reminders' : od.length ? 'overdue' : 'damaged';
-    b.classList.remove('hidden');
-  } else b.classList.add('hidden');
+  const due = rows.filter(isRemDue);
+  // no banner – the red counts on the Overdue / Reminders due / Damaged tabs show the same thing
 
   $('bellBtn').classList.toggle('on', 'Notification' in window && Notification.permission === 'granted');
   if (!due.length || !('Notification' in window) || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
