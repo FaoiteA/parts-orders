@@ -514,8 +514,12 @@ let fuNext = '';
 let pvPath = null;
 let pageDay = null, pageAnim = '';
 
+const VIEWS_LIST = ['open','overdue','reminders','damaged','arrived','upcoming','closed','all'];
+// every launch: today's diary page, All orders, no leftover search/filters
+// (a link like ?view=reminders from the email still opens that tab)
+Object.assign(state, { mode: 'pages', view: 'all', q: '', status: '', supplier: '', from: '', to: '' });
 const urlView = new URLSearchParams(location.search).get('view');
-if (urlView) state.view = urlView;
+if (urlView && VIEWS_LIST.includes(urlView)) state.view = urlView;
 
 // ---- helpers ----
 const isOverdue = r => OPEN.includes(r.status) && r.eta_date && r.eta_date < today();
