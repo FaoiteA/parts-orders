@@ -71,6 +71,22 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .grp.day::after{display:none}
 .grp.day .pg{color:var(--acc);font-family:ui-monospace,Consolas,monospace;font-size:12px}
 .grp.day b{margin-left:auto;color:var(--mut);font-size:12px;font-weight:500}
+.pnav{position:sticky;top:var(--hh,0);z-index:4;display:flex;align-items:stretch;gap:8px;background:var(--bg);padding:6px 0 8px}
+.pbtn{flex:none;width:70px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:28px;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--acc);padding:4px}
+.pbtn small{font-size:10px;color:var(--mut);white-space:nowrap}
+.pbtn:disabled{opacity:.25;cursor:default}
+.ptitle{flex:1;min-width:0;text-align:center;background:var(--card2);border-radius:12px;border-top:4px solid var(--acc);padding:6px 8px;display:flex;flex-direction:column;gap:1px}
+.ptitle b{font-size:16px}
+.ptitle .pg{color:var(--acc);font-family:ui-monospace,Consolas,monospace;font-size:13px;font-weight:700}
+.ptitle small{color:var(--mut);font-size:12px}
+.ptools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.ptools button,.pjump{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text)}
+.pjump{display:flex;align-items:center;gap:4px;padding:2px 4px 2px 10px}
+.pjump input{width:auto;padding:3px 6px;font-size:12px;border:none;background:transparent}
+.pbody.slide-l{animation:slL .22s ease-out}
+.pbody.slide-r{animation:slR .22s ease-out}
+@keyframes slL{from{transform:translateX(48px);opacity:0}to{transform:none;opacity:1}}
+@keyframes slR{from{transform:translateX(-48px);opacity:0}to{transform:none;opacity:1}}
 .ocard .ohead{font-weight:600}
 .ohead .mut{color:var(--mut)}
 .osum{font-size:12px;color:var(--mut);margin-top:4px}
@@ -475,6 +491,7 @@ const supersededBy = desc => { const m = /^NOW\s+([A-Z0-9.\-\/]+)/i.exec(desc ||
 let rows = [];
 let state = Object.assign({view:'open', q:'', status:'', supplier:'', dateField:'ordered_date', from:'', to:'', sort:'diary:d'}, ls.get('po_state', {}));
 if (!state.v2) { state.sort = 'diary:d'; state.v2 = 1; saveState(); } // one-off: switch existing devices to the diary layout
+if (!state.v3) { state.mode = 'pages'; state.v3 = 1; saveState(); } // one-off: open in diary page view
 let editing = null;
 let loading = false;
 let catalog = null, catIdx = null;
@@ -484,6 +501,7 @@ let newGroup = null;
 let gCount = new Map();
 let fuNext = '';
 let pvPath = null;
+let pageDay = null, pageAnim = '';
 
 const urlView = new URLSearchParams(location.search).get('view');
 if (urlView) state.view = urlView;
@@ -610,16 +628,17 @@ function matchFilters(r) {
   }
   return true;
 }
+function diaryCmp(a, b) {
+  const x = a.ordered_date || '', y = b.ordered_date || '';
+  if (x !== y) { if (!x) return -1; if (!y) return 1; return y.localeCompare(x); }
+  const dx = +(a.diary_no || 0), dy = +(b.diary_no || 0);
+  if (dx !== dy) return dy - dx;
+  return b.id - a.id;
+}
 function sorter() {
   const [f, dir] = state.sort.split(':');
   // Diary: newest order day first, not-yet-ordered at the top, then by diary no (time) within the day
-  if (f === 'diary') return (a, b) => {
-    const x = a.ordered_date || '', y = b.ordered_date || '';
-    if (x !== y) { if (!x) return -1; if (!y) return 1; return y.localeCompare(x); }
-    const dx = +(a.diary_no || 0), dy = +(b.diary_no || 0);
-    if (dx !== dy) return dy - dx;
-    return b.id - a.id;
-  };
+  if (f === 'diary') return diaryCmp;
   return (a, b) => {
     const x = a[f] ?? '', y = b[f] ?? '';
     if (x === '' && y !== '') return 1;
@@ -764,9 +783,46 @@ function render() {
     hint = `${list.length} match${list.length === 1 ? '' : 'es'}`;
     if (state.view !== 'all' && total > list.length) hint += ` · ${total - list.length} more in other views – <a data-showall>show all</a>`;
   }
-  $('list').innerHTML = (hint ? `<div class="hint">${hint}</div>` : '') +
+  const hintHtml = hint ? `<div class="hint">${hint}</div>` : '';
+  if (state.mode === 'pages') { $('list').innerHTML = hintHtml + renderPages(list); pageAnim = ''; return; }
+  $('list').innerHTML = `<div class="ptools"><button data-mode="pages">📖 Page view</button></div>` + hintHtml +
     (list.length ? withHeadings(list) : `<div class="empty">${rows.length ? 'Nothing here.' : 'No orders yet – tap ＋ to add one.'}</div>`);
 }
+
+// ---- page view: one diary day per screen, swipe / arrows to turn ----
+function renderPages(list) {
+  const t = today();
+  const items = buildItems(list.slice().sort(diaryCmp));
+  const byDay = new Map(), todo = [];
+  for (const it of items) {
+    const ds = it.rows[0].ordered_date;
+    if (!ds) { todo.push(it); continue; }
+    if (!byDay.has(ds)) byDay.set(ds, []);
+    byDay.get(ds).push(it);
+  }
+  if (!pageDay) pageDay = t;
+  const order = [...new Set([...byDay.keys(), t, pageDay])].sort();
+  const i = order.indexOf(pageDay), prev = order[i - 1], next = order[i + 1];
+  const its = byDay.get(pageDay) || [];
+  const h = dayHead(pageDay, true), parts = its.reduce((n, it) => n + it.rows.length, 0);
+  const lbl = ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  let body = its.length ? its.map(itemHtml).join('') : `<div class="empty">No orders on this page${pageDay === t ? ' yet – tap ＋ to add one' : ''}.</div>`;
+  if (pageDay === t && todo.length) body += `<h3 class="grp">Not ordered yet<b>${todo.length}</b></h3>` + todo.map(itemHtml).join('');
+  return `<div class="pnav">
+      <button class="pbtn" data-pg="${prev || ''}" ${prev ? '' : 'disabled'} title="Previous page">‹<small>${prev ? lbl(prev) : ''}</small></button>
+      <div class="ptitle"><b>${esc(h.label)}</b><span class="pg">${h.page}</span><small>${its.length} order${its.length === 1 ? '' : 's'}${parts > its.length ? ` · ${parts} parts` : ''}</small></div>
+      <button class="pbtn" data-pg="${next || ''}" ${next ? '' : 'disabled'} title="Next page">›<small>${next ? lbl(next) : ''}</small></button>
+    </div>
+    <div class="ptools">${pageDay !== t ? `<button data-pg="${t}">Today</button>` : ''}<span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button></div>
+    <div class="pbody ${pageAnim}">${body}</div>`;
+}
+function goPage(ds) {
+  if (!ds || ds === pageDay) return;
+  pageAnim = ds > pageDay ? 'slide-l' : 'slide-r';
+  pageDay = ds; render(); window.scrollTo(0, 0);
+}
+function turnPage(dir) { const b = $('list').querySelectorAll('.pnav .pbtn')[dir > 0 ? 1 : 0]; if (b && b.dataset.pg) goPage(b.dataset.pg); }
+function setHH() { document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px'); }
 
 // ---- date headings (follow the current sort field) ----
 const DATE_SORTS = ['diary','updated_at','created_at','ordered_date','eta_date','reminder_date','received_date','collected_date','returned_date','cancelled_date','damaged_date'];
@@ -1192,7 +1248,26 @@ $('fFrom').value = state.from; $('fTo').value = state.to; $('fSort').value = sta
 let qt; $('q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; saveState(); render(); }, 120); });
 const bindF = (id, key) => $(id).addEventListener('change', e => { state[key] = e.target.value; saveState(); render(); });
 bindF('fStatus', 'status'); bindF('fSupplier', 'supplier'); bindF('fDateField', 'dateField'); bindF('fFrom', 'from'); bindF('fTo', 'to'); bindF('fSort', 'sort');
-$('filterBtn').onclick = () => $('filters').classList.toggle('hidden');
+$('filterBtn').onclick = () => { $('filters').classList.toggle('hidden'); setHH(); };
+window.addEventListener('resize', setHH); setHH();
+// page turning: buttons, date jump, swipe, arrow keys
+$('list').addEventListener('click', e => {
+  const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
+  const md = e.target.closest('[data-mode]'); if (md) { e.stopImmediatePropagation(); state.mode = md.dataset.mode; saveState(); render(); window.scrollTo(0, 0); }
+}, true);
+$('list').addEventListener('change', e => { if (e.target.id === 'pgJump' && e.target.value) goPage(e.target.value); });
+let tx = null, ty = null;
+$('list').addEventListener('touchstart', e => { if (state.mode !== 'pages' || e.touches.length > 1 || e.target.closest('input,textarea,select')) { tx = null; return; } tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+$('list').addEventListener('touchend', e => {
+  if (tx == null) return;
+  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; tx = null;
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  turnPage(dx < 0 ? 1 : -1); // swipe left = next page, like turning a diary page
+});
+document.addEventListener('keydown', e => {
+  if (state.mode !== 'pages' || document.querySelector('dialog[open]') || e.target.closest('input,textarea,select') || !authed) return;
+  if (e.key === 'ArrowRight') turnPage(1); else if (e.key === 'ArrowLeft') turnPage(-1);
+});
 $('clearF').onclick = () => { Object.assign(state, {status:'', supplier:'', from:'', to:'', q:''}); ['fStatus','fSupplier','fFrom','fTo','q'].forEach(i => $(i).value = ''); saveState(); render(); };
 $('csvBtn').onclick = exportCsv;
 $('views').onclick = e => { const b = e.target.closest('button'); if (!b) return; state.view = b.dataset.v; saveState(); render(); window.scrollTo(0, 0); };
