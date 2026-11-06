@@ -21,6 +21,7 @@ h1 span{color:var(--acc)}
 .sync{font-size:11px;color:var(--mut);white-space:nowrap}
 .sync.ok{color:var(--green)}.sync.bad{color:var(--red)}
 .icon{background:var(--card);border:1px solid var(--line);border-radius:10px;width:38px;height:38px;cursor:pointer;flex:none}
+.todaybtn{flex:none;background:var(--acc);color:#111;border:none;border-radius:10px;padding:0 12px;height:38px;font-weight:700;cursor:pointer;white-space:nowrap}
 .icon.on{border-color:var(--acc);color:var(--acc)}
 .searchrow{display:flex;gap:8px;margin-top:8px}
 .searchrow input{flex:1;min-width:0}
@@ -91,6 +92,12 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .pjump{display:flex;align-items:center;gap:4px;padding:2px 4px 2px 10px}
 .pjump input{width:auto;padding:3px 6px;font-size:12px;border:none;background:transparent}
 .ltitle{font-weight:700;font-size:14px;margin-left:4px}
+.lnkbtn{background:none;border:none;color:var(--acc);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;text-transform:none;letter-spacing:0;margin-left:10px}
+.l-custwrap{grid-column:1/-1}
+.l-cust{display:grid;grid-template-columns:1fr 1.5fr 1.2fr 1fr;gap:6px;margin-top:6px}
+@media(max-width:560px){.l-cust{grid-template-columns:1fr 1fr}}
+.pcust{padding:6px 10px;font-size:13px;background:var(--card2);border-bottom:1px solid var(--line);color:var(--mut)}
+.pcust:not(:first-child){border-top:2px solid var(--line)}
 .achips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .ptools .achip{background:#2a1f0a;border-color:#6b4a12;color:#fcd34d}
 .ptools .achip[data-goview="overdue"],.ptools .achip[data-goview="damaged"]{background:#2a1215;border-color:#6b2328;color:#fca5a5}
@@ -181,7 +188,7 @@ dialog::backdrop{background:#000a}
 <body>
 <header>
   <div class="top">
-    <h1>Parts <span>Orders</span></h1>
+    <h1 id="homeTitle" style="cursor:pointer" title="Go to today">Parts <span>Orders</span></h1>
     <span id="sync" class="sync">…</span>
     <button id="catBtn" class="icon" title="Price file">📄</button>
     <button id="acctBtn" class="icon" title="Account">👤</button>
@@ -190,6 +197,7 @@ dialog::backdrop{background:#000a}
   </div>
   <div class="searchrow">
     <input id="q" type="search" placeholder="Search order no, part no, reg, supplier ref…" autocomplete="off">
+    <button id="todayBtn" class="todaybtn" title="Go to today">📅 Today</button>
     <button id="filterBtn" class="icon" title="Filters">⚙</button>
   </div>
   <div id="filters" class="filters hidden">
@@ -230,16 +238,28 @@ dialog::backdrop{background:#000a}
   <form id="frm" autocomplete="off">
     <div class="dh"><h2 id="dlgTitle">New order</h2><button type="button" class="icon" id="xBtn">✕</button></div>
     <div class="fb">
-      <div class="pnwrap"><label>Part number</label><div class="pnbox"><input name="part_number" id="pnIn" autocapitalize="characters" spellcheck="false">
-        <div id="pnSug" class="sug hidden"></div></div><div id="pnHint" class="pnhint"></div></div>
-      <div><label>Qty</label><input name="qty" type="number" step="any" inputmode="decimal"></div>
-      <div class="full"><label>Description *</label><input name="description" id="descIn" required></div>
+      <div class="sec" style="margin-top:0;border-top:none;padding-top:0">Order</div>
       <div><label>Order no (diary)</label><div style="display:flex;gap:6px"><input name="diary_no" id="diaryIn" inputmode="numeric" placeholder="e.g. 21600" style="font-family:ui-monospace,Consolas,monospace"><button type="button" class="btn" id="diaryNow" style="padding:9px 10px;flex:none">Now</button></div>
         <div class="pnhint" id="diaryHint"></div></div>
       <div><label>Supplier order / WIP no</label><input name="order_ref"></div>
       <div><label>Supplier</label><input name="supplier" list="supList"><datalist id="supList"></datalist></div>
       <div><label>Status</label><select name="status" id="statusSel"></select></div>
+      <div><label>Ordered by</label><input name="ordered_by"></div>
+      <div></div>
+
+      <div class="sec" id="custSec">Customer<button type="button" class="lnkbtn hidden" id="newCustBtn">New customer</button></div>
+      <div><label>Vehicle reg</label><input name="vehicle_reg" style="text-transform:uppercase"></div>
+      <div><label>Customer</label><input name="customer"></div>
+      <div><label>Phone</label><input name="customer_phone" type="tel" inputmode="tel" autocomplete="off"></div>
+      <div><label>Job / WIP no.</label><input name="job_ref"></div>
+
+      <div class="sec">Part</div>
+      <div class="pnwrap"><label>Part number</label><div class="pnbox"><input name="part_number" id="pnIn" autocapitalize="characters" spellcheck="false">
+        <div id="pnSug" class="sug hidden"></div></div><div id="pnHint" class="pnhint"></div></div>
+      <div><label>Qty</label><input name="qty" type="number" step="any" inputmode="decimal"></div>
+      <div class="full"><label>Description *</label><input name="description" id="descIn" required></div>
       <div><label>Cost (€)</label><input name="cost" type="number" step="0.01" inputmode="decimal"></div>
+      <div></div>
 
       <div class="full" id="linesWrap">
         <div id="extraLines"></div>
@@ -248,14 +268,6 @@ dialog::backdrop{background:#000a}
       </div>
       <div class="sec hidden" id="grpSec">Parts on this order</div>
       <div class="full hidden" id="grpBox"></div>
-
-      <div class="sec">Customer / job</div>
-      <div><label>Vehicle reg</label><input name="vehicle_reg" style="text-transform:uppercase"></div>
-      <div><label>Customer</label><input name="customer"></div>
-      <div><label>Phone</label><input name="customer_phone" type="tel" inputmode="tel" autocomplete="off"></div>
-      <div><label>Job / WIP no.</label><input name="job_ref"></div>
-      <div><label>Ordered by</label><input name="ordered_by"></div>
-      <div></div>
 
       <div class="sec">Dates</div>
       <div><label>Added to system</label><input id="addedOut" readonly tabindex="-1" style="color:var(--mut)"></div>
@@ -406,7 +418,7 @@ const DMG_NOTE = 'Follow up damaged part';
 const FIELDS = ['description','part_number','qty','supplier','diary_no','order_ref','status','cost','vehicle_reg','customer','customer_phone','job_ref','ordered_by','ordered_date','eta_date','received_date','collected_date','returned_date','cancelled_date','damaged','damage_status','damage_ref','damaged_date','damage_notes','reminder_date','reminder_note','reminder_done','notes'];
 const BOOLS = ['damaged','reminder_done'];
 // fields shared by every part on a multi-part order – editing one updates them all
-const SHARED = ['diary_no','order_ref','supplier','vehicle_reg','customer','customer_phone','job_ref','ordered_by'];
+const SHARED = ['diary_no','order_ref','supplier','ordered_by']; // customer details are per part (one order can cover several customers)
 const SEARCH_FIELDS = ['diary_no','customer_phone','part_number','description','supplier','order_ref','customer','vehicle_reg','job_ref','notes','reminder_note','ordered_by','status','damage_status','damage_ref','damage_notes'];
 
 // own session key so signing in here never changes how Stock Take (same domain + project) talks to Supabase
@@ -747,9 +759,20 @@ function orderCard(it) {
     r0.customer_phone && `<a class="tel" href="tel:${esc(String(r0.customer_phone).replace(/[^\d+]/g, ''))}">📞 ${esc(r0.customer_phone)}</a>`,
     r0.job_ref && `Job ${esc(r0.job_ref)}`
   ].filter(Boolean).join(' · ');
-  const lines = rs.map(s => { const si = STATUSES.indexOf(s.status); return `<div class="pline" data-id="${s.id}">
+  const ckey = s => [s.vehicle_reg || '', (s.customer || '').trim().toLowerCase(), String(s.customer_phone || '').replace(/\D/g, '')].join('|');
+  const custs = [...new Set(rs.map(ckey))], multi = custs.length > 1;
+  const custLine = s => [
+    s.vehicle_reg && `<span class="reg">${esc(s.vehicle_reg)}</span>`,
+    s.customer && esc(s.customer),
+    s.customer_phone && `<a class="tel" href="tel:${esc(String(s.customer_phone).replace(/[^\d+]/g, ''))}">📞 ${esc(s.customer_phone)}</a>`,
+    s.job_ref && `Job ${esc(s.job_ref)}`
+  ].filter(Boolean).join(' · ') || '<span class="mut">No customer</span>';
+  const lineHtml = s => { const si = STATUSES.indexOf(s.status); return `<div class="pline" data-id="${s.id}">
       <span class="pn">${esc(s.part_number || '—')}</span><span class="sd">${esc(s.description)}${s.qty != null && Number(s.qty) !== 1 ? ` <span class="q">×${esc(s.qty)}</span>` : ''}</span>
-      ${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}<span class="pill s${si}">${esc(s.status)}</span></div>`; }).join('');
+      ${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}<span class="pill s${si}">${esc(s.status)}</span></div>`; };
+  const lines = multi
+    ? custs.map(k => { const grp = rs.filter(s => ckey(s) === k); return `<div class="pcust">${custLine(grp[0])}</div>` + grp.map(lineHtml).join(''); }).join('')
+    : rs.map(lineHtml).join('');
   const hidden = all.length - rs.length;
   const dates = [
     r0.ordered_date && `<span>Ordered ${fmt(r0.ordered_date)}</span>`,
@@ -766,8 +789,8 @@ function orderCard(it) {
   qa.push(`<button data-act="g:add">＋ Add part</button>`);
   return `<article class="card ocard st${minSi} ${anyOd ? 'od' : ''} ${dmgN ? 'dmg' : ''}" data-id="${r0.id}">
     <div class="row1"><span class="desc ohead">${head}</span><span class="pill">${all.length} parts</span></div>
-    ${cust ? `<div class="meta">${cust}</div>` : ''}
-    <div class="osum">${summary}</div>
+    ${!multi && cust ? `<div class="meta">${cust}</div>` : ''}
+    <div class="osum">${summary}${multi ? ` · ${custs.length} customers` : ''}</div>
     <div class="plines">${lines}</div>
     ${hidden > 0 ? `<div class="hint" style="margin:4px 0 0">+${hidden} other part${hidden > 1 ? 's' : ''} on this order not shown here</div>` : ''}
     ${dates ? `<div class="dates">${dates}</div>` : ''}
@@ -851,13 +874,22 @@ function renderPages(list) {
       <div class="ptitle"><b>${esc(h.label)}</b><span class="pg">${h.page}</span><small>${its.length} order${its.length === 1 ? '' : 's'}${parts > its.length ? ` · ${parts} parts` : ''}</small></div>
       <button class="pbtn" data-pg="${next || ''}" ${next ? '' : 'disabled'} title="Next page">›<small>${next ? lbl(next) : ''}</small></button>
     </div>
-    <div class="ptools">${pageDay !== t ? `<button data-pg="${t}">Today</button>` : ''}<span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button>${alertChips()}</div>
+    <div class="ptools"><span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button>${alertChips()}</div>
     <div class="pbody ${pageAnim}">${body}</div>`;
 }
 function goPage(ds) {
   if (!ds || ds === pageDay) return;
   pageAnim = ds > pageDay ? 'slide-l' : 'slide-r';
   pageDay = ds; render(); window.scrollTo(0, 0);
+}
+// jump to today's diary page with all orders, clearing any search/filters
+function goToday() {
+  if ($('dlg').open) $('dlg').close();
+  Object.assign(state, { mode: 'pages', view: 'all', q: '', status: '', supplier: '', from: '', to: '' });
+  ['q','fStatus','fSupplier','fFrom','fTo'].forEach(i => $(i).value = '');
+  const t = today(); pageAnim = pageDay && pageDay !== t ? (t > pageDay ? 'slide-l' : 'slide-r') : '';
+  pageDay = t; saveState(); render(); window.scrollTo(0, 0);
+  $('views').scrollTo({ left: $('views').scrollWidth, behavior: 'smooth' }); // 'All' is the last tab
 }
 function turnPage(dir) { const b = $('list').querySelectorAll('.pnav .pbtn')[dir > 0 ? 1 : 0]; if (b && b.dataset.pg) goPage(b.dataset.pg); }
 function setHH() { document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px'); }
@@ -1018,22 +1050,32 @@ function addLine() {
     <input class="l-qty" type="number" step="any" inputmode="decimal" value="1" placeholder="Qty">
     <input class="l-desc" placeholder="Description *">
     <input class="l-cost" type="number" step="0.01" inputmode="decimal" placeholder="€">
-    <button type="button" class="icon l-x" title="Remove part">✕</button>`;
+    <button type="button" class="icon l-x" title="Remove part">✕</button>
+    <div class="l-custwrap"><button type="button" class="lnkbtn l-ctog">👤 Different customer</button>
+      <div class="l-cust hidden"><input class="l-reg" placeholder="Reg" style="text-transform:uppercase"><input class="l-cn" placeholder="Customer"><input class="l-ph" type="tel" inputmode="tel" placeholder="Phone"><input class="l-job" placeholder="Job / WIP"></div></div>`;
   $('extraLines').appendChild(el);
+  el.querySelector('.l-ctog').onclick = () => {
+    const c = el.querySelector('.l-cust'), open = c.classList.toggle('hidden') === false;
+    el.querySelector('.l-ctog').textContent = open ? '👤 Same customer as above' : '👤 Different customer';
+    if (open) el.querySelector('.l-reg').focus(); else c.querySelectorAll('input').forEach(i => i.value = '');
+  };
   makeLookup(el.querySelector('.l-pn'), el.querySelector('.sug'), el.querySelector('.pnhint'), el.querySelector('.l-desc'));
   el.querySelector('.l-x').onclick = () => { el.remove(); updLinesHint(); };
   updLinesHint();
   el.querySelector('.l-pn').focus();
 }
 function readLines() {
-  return [...document.querySelectorAll('#extraLines .line')].map(el => ({
-    part_number: el.querySelector('.l-pn').value, qty: el.querySelector('.l-qty').value,
-    description: el.querySelector('.l-desc').value, cost: el.querySelector('.l-cost').value
-  })).filter(l => l.part_number.trim() || l.description.trim());
+  return [...document.querySelectorAll('#extraLines .line')].map(el => {
+    const l = { part_number: el.querySelector('.l-pn').value, qty: el.querySelector('.l-qty').value,
+      description: el.querySelector('.l-desc').value, cost: el.querySelector('.l-cost').value };
+    if (!el.querySelector('.l-cust').classList.contains('hidden')) // own customer for this part
+      Object.assign(l, { vehicle_reg: el.querySelector('.l-reg').value, customer: el.querySelector('.l-cn').value, customer_phone: el.querySelector('.l-ph').value, job_ref: el.querySelector('.l-job').value });
+    return l;
+  }).filter(l => l.part_number.trim() || l.description.trim());
 }
 function updLinesHint() {
   const n = document.querySelectorAll('#extraLines .line').length;
-  $('linesHint').textContent = n ? `${n + 1} parts on this order – each is tracked separately. Supplier, PO, reg and dates are shared; reminder goes on the first part only.` : '';
+  $('linesHint').textContent = n ? `${n + 1} parts on this order. Order no, supplier and dates are shared. Each part goes to the customer above unless you tap 👤 Different customer. Reminder goes on the first part only.` : '';
 }
 async function insertRows(recs) {
   recs = recs.map(r => { r = sideEffects(clean(r), null); if (!r.status) r.status = 'To order'; return r; });
@@ -1219,6 +1261,7 @@ function openEditor(r, copy, focus, group) {
   }
   if (!editing) { f.elements.ordered_by.value = f.elements.ordered_by.value || ls.get('po_who', ''); if (!r || copy === 'prefill') f.elements.qty.value = 1; }
   $('extraLines').innerHTML = ''; updLinesHint();
+  $('newCustBtn').classList.toggle('hidden', copy !== 'prefill');
   mainLk.reset(); $('fuNote').value = ''; setFuNext('');
   if (r?.part_number && catalog) { const keep = f.elements.description.value; mainLk.hint(r.part_number); if (keep) { f.elements.description.value = keep; mainLk.auto = ''; } }
   toggleDmg(); toggleCloseDates(); showAdded(editing); diaryHint(); renderGroup();
@@ -1277,18 +1320,15 @@ $('fFrom').value = state.from; $('fTo').value = state.to; $('fSort').value = sta
 let qt; $('q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; saveState(); render(); }, 120); });
 const bindF = (id, key) => $(id).addEventListener('change', e => { state[key] = e.target.value; saveState(); render(); });
 bindF('fStatus', 'status'); bindF('fSupplier', 'supplier'); bindF('fDateField', 'dateField'); bindF('fFrom', 'from'); bindF('fTo', 'to'); bindF('fSort', 'sort');
+$('todayBtn').onclick = goToday;
+$('newCustBtn').onclick = () => { const f = $('frm'); ['vehicle_reg','customer','customer_phone','job_ref'].forEach(k => f.elements[k].value = ''); f.elements.vehicle_reg.focus(); };
+$('homeTitle').onclick = goToday;
 $('filterBtn').onclick = () => { $('filters').classList.toggle('hidden'); setHH(); };
 window.addEventListener('resize', setHH); setHH();
 // page turning: buttons, date jump, swipe, arrow keys
 $('list').addEventListener('click', e => {
   const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
-  if (e.target.closest('[data-backdiary]')) {
-    e.stopImmediatePropagation();
-    if (ACTION_VIEWS.includes(state.view)) state.view = 'open';
-    Object.assign(state, { q: '', status: '', supplier: '', from: '', to: '' });
-    ['q','fStatus','fSupplier','fFrom','fTo'].forEach(i => $(i).value = '');
-    saveState(); render(); window.scrollTo(0, 0); return;
-  }
+  if (e.target.closest('[data-backdiary]')) { e.stopImmediatePropagation(); goToday(); return; }
   const gv = e.target.closest('[data-goview]'); if (gv) { e.stopImmediatePropagation(); state.view = gv.dataset.goview; saveState(); render(); window.scrollTo(0, 0); return; }
   const md = e.target.closest('[data-mode]'); if (md) { e.stopImmediatePropagation(); state.mode = md.dataset.mode; saveState(); render(); window.scrollTo(0, 0); }
 }, true);
