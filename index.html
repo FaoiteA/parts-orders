@@ -123,7 +123,8 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .bofoot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:700px){.borow{grid-template-columns:28px 1fr 1fr;row-gap:6px;column-gap:10px}.borow .bochk{grid-column:1;grid-row:1/5;align-self:start;margin-top:2px}.borow .pn{grid-column:2/4;grid-row:1}.borow .bod{grid-column:2/4;grid-row:2;font-weight:600}.borow .bom{white-space:nowrap}}
 .peta{font-size:11px;color:var(--mut);white-space:nowrap}
-.ptools .achip.bk{background:#13261b;border-color:#25603a;color:#86efac}
+.ptools .achip.bk{background:var(--card);border-color:var(--line);color:var(--text)}
+.ptools .achip.bk.due{background:#13261b;border-color:#25603a;color:#86efac}
 .bklist{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .bkrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-size:14px}
 .bkrow:last-child{border-bottom:none}
@@ -925,7 +926,7 @@ function alertChips() {
   const di = rows.filter(isDueIn).length, bo = rows.filter(isBackOrder).length;
   const c = [
     di && `<button class="achip" data-goview="duein">📦 ${di} due in today</button>`,
-    backupDue() && `<button class="achip bk" data-acct>💾 Backup due</button>`,
+    `<button class="achip bk ${backupDue() ? 'due' : ''}" data-backup title="Download a backup of all orders">💾 ${backupDue() ? 'Backup due' : 'Back up'}</button>`,
     `<button class="achip bo ${boOpen ? 'on' : ''}" data-bo>⏳ ${bo} on back order ${boOpen ? '▴' : '▾'}</button>`,
     due && `<button class="achip" data-goview="reminders">🔔 ${due} reminder${due > 1 ? 's' : ''} due</button>`,
     od && `<button class="achip" data-goview="overdue">⚠ ${od} overdue</button>`,
@@ -1092,7 +1093,7 @@ async function fetchAll() {
   while (true) { const { data, error } = await sb.from(T).select('*').order('id').range(from, from + 999); if (error) throw error; all = all.concat(data); if (data.length < 1000) break; from += 1000; }
   return all;
 }
-async function downloadBackup() {
+async function downloadBackup(fromHome) {
   try {
     const all = await fetchAll();
     const backup = { app: 'parts-orders', version: 1, exported_at: new Date().toISOString(), exported_by: userEmail, count: all.length, rows: all };
@@ -1101,7 +1102,7 @@ async function downloadBackup() {
     a.download = `parts-orders-backup-${today()}.json`; document.body.appendChild(a); a.click(); a.remove();
     ls.set('po_lastdl', new Date().toISOString()); render();
     toast(`Backup downloaded (${all.length} parts) – keep it in Google Drive`);
-    openAccount();
+    if (!fromHome) openAccount();
   } catch (e) { toast('Backup failed: ' + (e.message || e), true); }
 }
 // put rows back exactly as they were in a backup: missing ones re-added, changed ones reverted. Newer orders are left alone.
@@ -1535,7 +1536,7 @@ window.addEventListener('resize', setHH); setHH();
 $('list').addEventListener('click', e => {
   const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
   if (e.target.closest('[data-backdiary]')) { e.stopImmediatePropagation(); goToday(); return; }
-  if (e.target.closest('[data-acct]')) { e.stopImmediatePropagation(); openAccount(); return; }
+  if (e.target.closest('[data-backup]')) { e.stopImmediatePropagation(); downloadBackup(true); return; }
   if (e.target.closest('[data-bo]')) { e.stopImmediatePropagation(); boOpen = !boOpen; render(); return; }
   if (e.target.closest('[data-boadd]')) { e.stopImmediatePropagation(); openEditor(null); const f = $('frm'); f.elements.status.value = 'Back order'; onStatusChange(); return; }
   if (e.target.closest('[data-boarrive]')) {
@@ -1787,7 +1788,7 @@ $('resetForm').onsubmit = async e => {
 };
 $('acctBtn').onclick = openAccount;
 $('acctX').onclick = () => $('acctDlg').close();
-$('bkDownload').onclick = downloadBackup;
+$('bkDownload').onclick = () => downloadBackup(false);
 $('bkRestoreBtn').onclick = showRestore;
 $('binBtn').onclick = showBin;
 $('bkPanel').addEventListener('click', async e => {
