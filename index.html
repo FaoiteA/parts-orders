@@ -123,6 +123,13 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .bofoot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:700px){.borow{grid-template-columns:28px 1fr 1fr;row-gap:6px;column-gap:10px}.borow .bochk{grid-column:1;grid-row:1/5;align-self:start;margin-top:2px}.borow .pn{grid-column:2/4;grid-row:1}.borow .bod{grid-column:2/4;grid-row:2;font-weight:600}.borow .bom{white-space:nowrap}}
 .peta{font-size:11px;color:var(--mut);white-space:nowrap}
+.ptools .achip.bk{background:#13261b;border-color:#25603a;color:#86efac}
+.bklist{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.bkrow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-size:14px}
+.bkrow:last-child{border-bottom:none}
+.bkrow>span:first-child{flex:1;min-width:0}
+.bkrow .btn{padding:5px 10px;font-size:13px}
+#acctDlg .mut,.bkrow .mut{color:var(--mut)}
 .achips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .ptools .achip{background:#2a1f0a;border-color:#6b4a12;color:#fcd34d}
 .ptools .achip[data-goview="overdue"],.ptools .achip[data-goview="damaged"]{background:#2a1215;border-color:#6b2328;color:#fca5a5}
@@ -390,6 +397,15 @@ dialog::backdrop{background:#000a}
       <button type="button" class="btn dan" id="signOut">Sign out</button>
     </div>
     <div class="full catinfo mut">Signing out clears orders saved on this device.</div>
+    <div class="sec">Backups</div>
+    <div class="full catinfo" id="bkInfo">Supabase saves a full copy of every order each night and keeps 30 days.</div>
+    <div class="full" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn pri" id="bkDownload">💾 Download backup</button>
+      <button type="button" class="btn" id="bkRestoreBtn">↩ Restore…</button>
+      <button type="button" class="btn" id="binBtn">🗑 Bin</button>
+      <input type="file" id="bkFile" accept=".json,application/json" hidden>
+    </div>
+    <div class="full hidden" id="bkPanel"></div>
   </div>
 </dialog>
 
@@ -544,6 +560,7 @@ const supersededBy = desc => { const m = /^NOW\s+([A-Z0-9.\-\/]+)/i.exec(desc ||
 // CATALOG-END
 
 let rows = [];
+let binRows = [];
 let state = Object.assign({view:'open', q:'', status:'', supplier:'', dateField:'ordered_date', from:'', to:'', sort:'diary:d'}, ls.get('po_state', {}));
 if (!state.v2) { state.sort = 'diary:d'; state.v2 = 1; saveState(); } // one-off: switch existing devices to the diary layout
 if (!state.v3) { state.mode = 'pages'; state.v3 = 1; saveState(); } // one-off: open in diary page view
@@ -608,7 +625,9 @@ async function load(silent) {
       if (data.length < size) break;
       from += size;
     }
-    rows = all; cache();
+    rows = all.filter(r => !r.deleted_at);
+    binRows = all.filter(r => r.deleted_at);
+    cache(); purgeBin();
     setSync('Synced ' + new Date().toLocaleTimeString('en-IE', {hour:'2-digit', minute:'2-digit'}), 'ok');
   } catch (e) {
     console.error(e);
@@ -670,12 +689,32 @@ async function insertRow(rec) {
   return data[0];
 }
 
+// "Delete" = move to the bin (kept 30 days, can be put back)
 async function deleteRow(r) {
+  const v = r.version || 1;
+  const { data, error } = await sb.from(T).update({ deleted_at: new Date().toISOString(), version: v + 1, updated_at: new Date().toISOString() }).eq('id', r.id).eq('version', v).select();
+  if (error) { toast('Delete failed: ' + error.message, true); return false; }
+  if (!data.length) { toast('Someone else changed this order – reloaded.', true); await load(true); return false; }
+  rows = rows.filter(x => x.id !== r.id); binRows.push(data[0]); cache(); render(); checkReminders();
+  return true;
+}
+async function unbin(r) {
+  const { data, error } = await sb.from(T).update({ deleted_at: null, version: (r.version || 1) + 1, updated_at: new Date().toISOString() }).eq('id', r.id).select();
+  if (error || !data.length) { toast('Could not restore: ' + (error?.message || 'not found'), true); return false; }
+  binRows = binRows.filter(x => x.id !== r.id); rows.push(data[0]); cache(); render(); checkReminders();
+  return true;
+}
+async function deleteForever(r) {
   const { error } = await sb.from(T).delete().eq('id', r.id);
   if (error) { toast('Delete failed: ' + error.message, true); return false; }
   if (r.photos?.length) sb.storage.from(BUCKET).remove(r.photos).catch(console.warn);
-  rows = rows.filter(x => x.id !== r.id); cache(); render(); checkReminders();
+  binRows = binRows.filter(x => x.id !== r.id);
   return true;
+}
+// bin items older than 30 days are removed for good (and their photos)
+async function purgeBin() {
+  const cutoff = Date.now() - 30 * 86400000;
+  for (const r of binRows.filter(x => new Date(x.deleted_at).getTime() < cutoff)) await deleteForever(r);
 }
 
 // ---- filtering ----
@@ -886,6 +925,7 @@ function alertChips() {
   const di = rows.filter(isDueIn).length, bo = rows.filter(isBackOrder).length;
   const c = [
     di && `<button class="achip" data-goview="duein">📦 ${di} due in today</button>`,
+    backupDue() && `<button class="achip bk" data-acct>💾 Backup due</button>`,
     `<button class="achip bo ${boOpen ? 'on' : ''}" data-bo>⏳ ${bo} on back order ${boOpen ? '▴' : '▾'}</button>`,
     due && `<button class="achip" data-goview="reminders">🔔 ${due} reminder${due > 1 ? 's' : ''} due</button>`,
     od && `<button class="achip" data-goview="overdue">⚠ ${od} overdue</button>`,
@@ -1033,6 +1073,61 @@ async function notifyDueIn() {
     await reg.showNotification(`📦 ${list.length} part${list.length > 1 ? 's' : ''} due in today`, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'po-duein', data: { url: './?view=duein' } });
     ls.set(key, true);
   } catch (e) { console.warn(e); }
+}
+
+// ---- backups, restore, bin ----
+const lastDl = () => ls.get('po_lastdl', '');
+function backupDue() { const d = lastDl(); return rows.length > 0 && (!d || Date.now() - new Date(d).getTime() > 7 * 86400000); }
+async function openAccount() {
+  $('bkPanel').classList.add('hidden'); $('bkPanel').innerHTML = '';
+  $('binBtn').textContent = `🗑 Bin${binRows.length ? ` (${binRows.length})` : ''}`;
+  $('acctDlg').showModal();
+  const { data } = await sb.from('parts_orders_snapshots').select('taken_at,row_count').order('taken_at', { ascending: false }).limit(1);
+  const d = lastDl();
+  $('bkInfo').innerHTML = `Supabase saves a full copy of every order each night and keeps 30 days.<br>` +
+    `<span class="mut">Last automatic: ${data?.[0] ? `${fmtDT(data[0].taken_at)} (${data[0].row_count} parts)` : 'none yet'} · Last downloaded on this device: ${d ? fmtDT(d) : 'never'}</span>`;
+}
+async function fetchAll() {
+  let all = [], from = 0;
+  while (true) { const { data, error } = await sb.from(T).select('*').order('id').range(from, from + 999); if (error) throw error; all = all.concat(data); if (data.length < 1000) break; from += 1000; }
+  return all;
+}
+async function downloadBackup() {
+  try {
+    const all = await fetchAll();
+    const backup = { app: 'parts-orders', version: 1, exported_at: new Date().toISOString(), exported_by: userEmail, count: all.length, rows: all };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(backup)], { type: 'application/json' }));
+    a.download = `parts-orders-backup-${today()}.json`; document.body.appendChild(a); a.click(); a.remove();
+    ls.set('po_lastdl', new Date().toISOString()); render();
+    toast(`Backup downloaded (${all.length} parts) – keep it in Google Drive`);
+    openAccount();
+  } catch (e) { toast('Backup failed: ' + (e.message || e), true); }
+}
+// put rows back exactly as they were in a backup: missing ones re-added, changed ones reverted. Newer orders are left alone.
+async function restoreRows(backupRows, label) {
+  if (!backupRows?.length) return toast('That backup is empty', true);
+  if (!confirm(`Restore ${backupRows.length} parts from ${label}?\n\nAnything missing is added back and anything changed since is put back to how it was. Orders added after the backup are kept.\n\nA safety copy of how things are now is saved first.`)) return;
+  try {
+    await sb.rpc('parts_orders_take_snapshot'); // safety copy, so a restore can itself be undone
+    const cur = new Map((await fetchAll()).map(r => [r.id, r]));
+    const recs = backupRows.map(r => ({ ...r, version: (cur.get(r.id)?.version || r.version || 1) + 1, updated_at: new Date().toISOString() }));
+    for (let i = 0; i < recs.length; i += 300) { const { error } = await sb.from(T).upsert(recs.slice(i, i + 300), { onConflict: 'id' }); if (error) throw error; }
+    toast(`Restored ${recs.length} parts`); $('acctDlg').close(); await load();
+  } catch (e) { toast('Restore failed: ' + (e.message || e), true); }
+}
+async function showRestore() {
+  const p = $('bkPanel'); p.classList.remove('hidden'); p.innerHTML = '<div class="hint">Loading backups…</div>';
+  const { data, error } = await sb.from('parts_orders_snapshots').select('id,taken_at,row_count').order('taken_at', { ascending: false }).limit(60);
+  if (error) { p.innerHTML = `<div class="hint">Couldn't load backups: ${esc(error.message)}</div>`; return; }
+  p.innerHTML = `<div class="bklist">${(data || []).map(s => `<div class="bkrow"><span>${fmtDT(s.taken_at)}</span><span class="mut">${s.row_count} parts</span><button type="button" class="btn" data-snap="${s.id}" data-when="${esc(fmtDT(s.taken_at))}">Restore</button></div>`).join('') || '<div class="hint">No automatic backups yet – the first runs tonight.</div>'}</div>
+    <button type="button" class="btn" id="bkFromFile" style="margin-top:8px">📂 Restore from a downloaded file…</button>`;
+}
+function showBin() {
+  const p = $('bkPanel'); p.classList.remove('hidden');
+  const list = binRows.slice().sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
+  p.innerHTML = list.length ? `<div class="bklist">${list.map(r => `<div class="bkrow"><span><b>${esc(r.description)}</b> <span class="mut">${esc(r.part_number || '')}${r.diary_no ? ' · #' + esc(r.diary_no) : ''}</span><br><small class="mut">Deleted ${fmtDT(r.deleted_at)} · gone for good after 30 days</small></span><button type="button" class="btn" data-unbin="${r.id}">Put back</button><button type="button" class="btn dan" data-kill="${r.id}">Delete now</button></div>`).join('')}</div>`
+    : '<div class="hint">The bin is empty.</div>';
 }
 
 // ---- price file (catalog) ----
@@ -1440,6 +1535,7 @@ window.addEventListener('resize', setHH); setHH();
 $('list').addEventListener('click', e => {
   const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
   if (e.target.closest('[data-backdiary]')) { e.stopImmediatePropagation(); goToday(); return; }
+  if (e.target.closest('[data-acct]')) { e.stopImmediatePropagation(); openAccount(); return; }
   if (e.target.closest('[data-bo]')) { e.stopImmediatePropagation(); boOpen = !boOpen; render(); return; }
   if (e.target.closest('[data-boadd]')) { e.stopImmediatePropagation(); openEditor(null); const f = $('frm'); f.elements.status.value = 'Back order'; onStatusChange(); return; }
   if (e.target.closest('[data-boarrive]')) {
@@ -1610,6 +1706,12 @@ $('frm').onsubmit = async e => {
     }
     const others = siblings(editing).filter(s => s.id !== editing.id);
     ok = Object.keys(patch).length ? await updateRow(editing, patch) : true;
+    if (ok && patch.damage_status === 'Resolved') {
+      const cur = latest(editing.id), ph = cur?.photos || [];
+      if (ph.length && confirm(`Damage resolved – delete the ${ph.length} photo${ph.length > 1 ? 's' : ''}? They're no longer needed once credited.`)) {
+        if (await updateRow(cur, { photos: [] })) { sb.storage.from(BUCKET).remove(ph).catch(console.warn); toast('Photos deleted'); }
+      }
+    }
     if (ok && others.length) {
       // shared details (reg, customer, phone, refs…) follow to every part on the order
       const shared = Object.fromEntries(Object.keys(patch).filter(k => SHARED.includes(k)).map(k => [k, patch[k]]));
@@ -1625,7 +1727,7 @@ $('frm').onsubmit = async e => {
   $('saveBtn').disabled = false;
   if (ok) { $('dlg').close(); toast('Saved'); }
 };
-$('delBtn').onclick = async () => { if (editing && confirm(`Delete "${editing.description}"${(latest(editing.id)?.photos || []).length ? ' and its photos' : ''}?`)) { if (await deleteRow(latest(editing.id) || editing)) { $('dlg').close(); toast('Deleted'); } } };
+$('delBtn').onclick = async () => { if (editing && confirm(`Move "${editing.description}" to the bin?\n(You can put it back from 👤 → Bin for 30 days.)`)) { if (await deleteRow(latest(editing.id) || editing)) { $('dlg').close(); toast('Moved to bin'); } } };
 $('dupBtn').onclick = () => { const r = { ...editing, ...clean(readForm()) }; $('dlg').close(); openEditor(r, true); };
 $('icsBtn').onclick = () => downloadIcs({ ...(editing || {}), ...clean(readForm()) });
 
@@ -1683,12 +1785,27 @@ $('resetForm').onsubmit = async e => {
   $('newPw').value = ''; toast('Password changed'); history.replaceState(null, '', location.pathname);
   const { data: s } = await sb.auth.getSession(); if (s.session) startApp(s.session); else showLogin();
 };
-$('acctBtn').onclick = () => $('acctDlg').showModal();
+$('acctBtn').onclick = openAccount;
 $('acctX').onclick = () => $('acctDlg').close();
+$('bkDownload').onclick = downloadBackup;
+$('bkRestoreBtn').onclick = showRestore;
+$('binBtn').onclick = showBin;
+$('bkPanel').addEventListener('click', async e => {
+  const snap = e.target.closest('[data-snap]');
+  if (snap) { const { data, error } = await sb.from('parts_orders_snapshots').select('data').eq('id', +snap.dataset.snap).single(); if (error) return toast(error.message, true); return restoreRows(data.data, `the backup of ${snap.dataset.when}`); }
+  if (e.target.id === 'bkFromFile') return $('bkFile').click();
+  const ub = e.target.closest('[data-unbin]'); if (ub) { const r = binRows.find(x => x.id === +ub.dataset.unbin); if (r && await unbin(r)) { toast('Put back'); showBin(); $('binBtn').textContent = `🗑 Bin${binRows.length ? ` (${binRows.length})` : ''}`; } return; }
+  const k = e.target.closest('[data-kill]'); if (k) { const r = binRows.find(x => x.id === +k.dataset.kill); if (r && confirm(`Delete "${r.description}" for good? This can't be undone.`) && await deleteForever(r)) { toast('Deleted for good'); showBin(); $('binBtn').textContent = `🗑 Bin${binRows.length ? ` (${binRows.length})` : ''}`; } }
+});
+$('bkFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const b = JSON.parse(await f.text()); if (b.app !== 'parts-orders' || !Array.isArray(b.rows)) throw new Error('Not a Parts Orders backup file'); restoreRows(b.rows, `the file saved ${fmtDT(b.exported_at)}`); }
+  catch (err) { toast('Could not read file: ' + err.message, true); }
+});
 $('signOut').onclick = async () => {
   await sb.auth.signOut();
   try { localStorage.removeItem('po_cache'); localStorage.removeItem('po_notified'); } catch (e) {}
-  rows = []; render(); $('acctDlg').close(); showLogin();
+  rows = []; binRows = []; render(); $('acctDlg').close(); showLogin();
 };
 $('acctPw').onclick = () => { $('acctDlg').close(); showLogin('reset'); };
 sb.auth.onAuthStateChange((ev, session) => {
