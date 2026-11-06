@@ -108,6 +108,21 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .assign{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px;border:1px solid var(--acc);border-radius:10px;margin:8px 0;font-size:13px}
 .assign select{width:auto;flex:1;min-width:160px}
 .assign .cbgrid{flex-basis:100%;margin:0}
+.ptools .achip.bo{background:#1d2333;border-color:#3b4a6b;color:#a5b4fc}
+.ptools .achip.bo.on{background:#a5b4fc;color:#111;border-color:#a5b4fc}
+.bopanel{grid-column:1/-1;border:1px solid #3b4a6b;border-radius:12px;background:#141a26;padding:10px;margin:0 0 12px}
+.bohead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:8px}
+.bohead b{color:#a5b4fc}.bohead .mut{color:var(--mut);font-size:12px}
+.borow{display:grid;grid-template-columns:24px 120px minmax(160px,2fr) repeat(4,minmax(80px,1fr));gap:8px;align-items:center;padding:8px;border-top:1px solid var(--line);cursor:pointer;font-size:14px}
+.borow:hover{background:#1a2230}
+.borow .bochk{width:20px;height:20px;margin:0;accent-color:var(--green)}
+.borow .pn{font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis}
+.borow .bod{min-width:0}.borow .bod small{display:block;color:var(--mut);font-size:12px}
+.borow .bom{font-size:13px}.borow .bom small{display:block;color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.borow .q{color:var(--acc);font-weight:600}
+.bofoot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media(max-width:700px){.borow{grid-template-columns:28px 1fr 1fr;row-gap:6px;column-gap:10px}.borow .bochk{grid-column:1;grid-row:1/5;align-self:start;margin-top:2px}.borow .pn{grid-column:2/4;grid-row:1}.borow .bod{grid-column:2/4;grid-row:2;font-weight:600}.borow .bom{white-space:nowrap}}
+.peta{font-size:11px;color:var(--mut);white-space:nowrap}
 .achips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
 .ptools .achip{background:#2a1f0a;border-color:#6b4a12;color:#fcd34d}
 .ptools .achip[data-goview="overdue"],.ptools .achip[data-goview="damaged"]{background:#2a1215;border-color:#6b2328;color:#fca5a5}
@@ -155,9 +170,9 @@ dialog::backdrop{background:#000a}
 .pnwrap{position:relative}
 .pnbox{position:relative}
 .pnhint{font-size:12px;margin-top:4px;color:var(--mut);min-height:16px}
-.line{display:grid;grid-template-columns:1.3fr .55fr 2fr .75fr 38px;gap:6px;align-items:start;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px}
+.line{display:grid;grid-template-columns:1.3fr .5fr 2fr .6fr .7fr 38px;gap:6px;align-items:start;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px}
 .line .pnhint{min-height:0}
-@media(max-width:560px){.line{grid-template-columns:1fr 70px 38px}.line .l-desc{grid-column:1/3;grid-row:2}.line .l-cost{grid-column:3/4;grid-row:2;padding:9px 4px}}
+@media(max-width:560px){.line{grid-template-columns:1fr 64px 38px}.line .l-desc{grid-column:1/-1;grid-row:2}.line .l-eta{grid-column:1/2;grid-row:3}.line .l-cost{grid-column:2/4;grid-row:3;padding:9px 6px}}
 .sib{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:var(--card);cursor:pointer;font-size:14px}
 .sib.cur{border-color:var(--acc);cursor:default}
 .sib .sd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -258,6 +273,7 @@ dialog::backdrop{background:#000a}
         <div id="pnSug" class="sug hidden"></div></div><div id="pnHint" class="pnhint"></div></div>
       <div><label>Description *</label><input name="description" id="descIn" required></div>
       <div><label>Qty</label><input name="qty" type="number" step="any" inputmode="decimal"></div>
+      <div><label>ETA (days)</label><input id="etaDays" type="number" min="0" step="1" inputmode="numeric" placeholder="e.g. 3"><div class="pnhint" id="etaHint"></div></div>
       <div><label>Cost (€)</label><input name="cost" type="number" step="0.01" inputmode="decimal"></div>
 
       <div class="sec">Order</div>
@@ -542,7 +558,7 @@ let fuNext = '';
 let pvPath = null;
 let pageDay = null, pageAnim = '';
 
-const VIEWS_LIST = ['open','overdue','reminders','damaged','arrived','upcoming','closed','all'];
+const VIEWS_LIST = ['open','overdue','reminders','damaged','duein','backorder','arrived','upcoming','closed','all'];
 // every launch: today's diary page, All orders, no leftover search/filters
 // (a link like ?view=reminders from the email still opens that tab)
 Object.assign(state, { mode: 'pages', view: 'all', q: '', status: '', supplier: '', from: '', to: '' });
@@ -554,6 +570,12 @@ const isOverdue = r => OPEN.includes(r.status) && r.eta_date && r.eta_date < tod
 const isRemDue = r => r.reminder_date && !r.reminder_done && r.reminder_date <= today();
 const isRemUpcoming = r => r.reminder_date && !r.reminder_done && r.reminder_date > today();
 const isDamagedOpen = r => r.damaged && r.damage_status !== 'Resolved';
+// whole days from today to an ETA (0 = today, negative = overdue)
+const daysTo = ds => Math.round((new Date(ds + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 86400000);
+const etaCount = ds => { const n = daysTo(ds); return n < 0 ? `overdue ${-n} day${n === -1 ? '' : 's'}` : n === 0 ? 'due today' : n === 1 ? 'due tomorrow' : `in ${n} days`; };
+const isDueIn = r => OPEN.includes(r.status) && r.eta_date === today();
+const isBackOrder = r => r.status === 'Back order';
+let boOpen = false;
 const VIEWS = {
   open: r => OPEN.includes(r.status),
   overdue: isOverdue,
@@ -561,6 +583,8 @@ const VIEWS = {
   damaged: isDamagedOpen,
   arrived: r => r.status === 'Arrived',
   upcoming: isRemUpcoming,
+  duein: isDueIn,
+  backorder: isBackOrder,
   closed: r => CLOSED.includes(r.status),
   all: () => true
 };
@@ -718,7 +742,7 @@ function card(r) {
     nG > 1 && `<span>📦 ${nG}-part order</span>`,
     !r.ordered_date && r.created_at && `<span>Added ${fmt(r.created_at)}</span>`,
     r.ordered_date && `<span>Ordered ${fmt(r.ordered_date)}</span>`,
-    r.eta_date && !r.received_date && OPEN.includes(r.status) && `<span class="${od ? 'red' : ''}">ETA ${fmt(r.eta_date)}${od ? ' · overdue' : ''}</span>`,
+    r.eta_date && !r.received_date && OPEN.includes(r.status) && `<span class="${od ? 'red' : daysTo(r.eta_date) <= 1 ? 'amber' : ''}">ETA ${fmt(r.eta_date)} · ${etaCount(r.eta_date)}</span>`,
     r.received_date && `<span>In ${fmt(r.received_date)}</span>`,
     r.collected_date && `<span>Fitted ${fmt(r.collected_date)}</span>`,
     r.returned_date && `<span>Returned ${fmt(r.returned_date)}</span>`,
@@ -785,14 +809,14 @@ function orderCard(it) {
   ].filter(Boolean).join(' · ') || '<span class="mut">No customer</span>';
   const lineHtml = s => { const si = STATUSES.indexOf(s.status); return `<div class="pline" data-id="${s.id}">
       <span class="pn">${esc(s.part_number || '—')}</span><span class="sd">${esc(s.description)}${s.qty != null && Number(s.qty) !== 1 ? ` <span class="q">×${esc(s.qty)}</span>` : ''}</span>
-      ${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}<span class="pill s${si}">${esc(s.status)}</span></div>`; };
+      ${s.eta_date && OPEN.includes(s.status) ? `<span class="peta ${daysTo(s.eta_date) < 0 ? 'red' : daysTo(s.eta_date) <= 1 ? 'amber' : ''}">${etaCount(s.eta_date)}</span>` : ''}${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}<span class="pill s${si}">${esc(s.status)}</span></div>`; };
   const lines = multi
     ? custs.map(k => { const grp = rs.filter(s => ckey(s) === k); return `<div class="pcust">${custLine(grp[0])}</div>` + grp.map(lineHtml).join(''); }).join('')
     : rs.map(lineHtml).join('');
   const hidden = all.length - rs.length;
   const dates = [
     r0.ordered_date && `<span>Ordered ${fmt(r0.ordered_date)}</span>`,
-    openEta && `<span class="${anyOd ? 'red' : ''}">ETA ${fmt(openEta)}${anyOd ? ' · overdue' : ''}</span>`,
+    openEta && `<span class="${anyOd ? 'red' : daysTo(openEta) <= 1 ? 'amber' : ''}">ETA ${fmt(openEta)} · ${etaCount(openEta)}</span>`,
     rem && `<span class="${remDue.length ? 'amber' : ''}">🔔 ${fmt(rem.reminder_date)}${rem.reminder_note ? ' – ' + esc(rem.reminder_note) : ''}</span>`,
     dmgN && `<span class="red">💥 ${dmgN} damaged</span>`,
     nP && `<span>📷 ${nP}</span>`
@@ -846,25 +870,47 @@ function render() {
     const hintHtml = hint ? `<div class="hint">${hint}</div>` : '';
     const parts = list.length, orders = buildItems(list).length;
     const title = searching ? 'Search results' : VIEW_TITLES[state.view];
-    $('list').innerHTML = `<div class="ptools"><button data-backdiary>‹ Back to diary</button><span class="ltitle">${title} · ${orders} order${orders === 1 ? '' : 's'}${parts > orders ? ` · ${parts} parts` : ''}</span>${alertChips()}</div>` + hintHtml +
+    $('list').innerHTML = `<div class="ptools"><button data-backdiary>‹ Back to diary</button><span class="ltitle">${title} · ${orders} order${orders === 1 ? '' : 's'}${parts > orders ? ` · ${parts} parts` : ''}</span>${alertChips()}</div>${boPanel()}` + hintHtml +
       (list.length ? withHeadings(list) : `<div class="empty">Nothing here.</div>`);
     return;
   }
-  $('list').innerHTML = `<div class="ptools"><button data-mode="pages">📖 Page view</button>${alertChips()}</div>` + hintHtml +
+  $('list').innerHTML = `<div class="ptools"><button data-mode="pages">📖 Page view</button>${alertChips()}</div>${boPanel()}` + hintHtml +
     (list.length ? withHeadings(list) : `<div class="empty">${rows.length ? 'Nothing here.' : 'No orders yet – tap ＋ to add one.'}</div>`);
 }
 
-const ACTION_VIEWS = ['overdue','reminders','damaged','upcoming'];
-const VIEW_TITLES = { overdue: '⚠ Overdue', reminders: '🔔 Reminders due', damaged: '💥 Damaged', upcoming: '🔔 Upcoming reminders' };
+const ACTION_VIEWS = ['overdue','reminders','damaged','upcoming','duein','backorder'];
+const VIEW_TITLES = { overdue: '⚠ Overdue', reminders: '🔔 Reminders due', damaged: '💥 Damaged', upcoming: '🔔 Upcoming reminders', duein: '📦 Due in today', backorder: '⏳ Back orders' };
 // small alert chips (replaces the old banner) – tap to open that tab
 function alertChips() {
   const due = rows.filter(isRemDue).length, od = rows.filter(isOverdue).length, dm = rows.filter(isDamagedOpen).length;
+  const di = rows.filter(isDueIn).length, bo = rows.filter(isBackOrder).length;
   const c = [
+    di && `<button class="achip" data-goview="duein">📦 ${di} due in today</button>`,
+    `<button class="achip bo ${boOpen ? 'on' : ''}" data-bo>⏳ ${bo} on back order ${boOpen ? '▴' : '▾'}</button>`,
     due && `<button class="achip" data-goview="reminders">🔔 ${due} reminder${due > 1 ? 's' : ''} due</button>`,
     od && `<button class="achip" data-goview="overdue">⚠ ${od} overdue</button>`,
     dm && `<button class="achip" data-goview="damaged">💥 ${dm} damaged</button>`
   ].filter(Boolean).join('');
   return c ? `<span class="achips">${c}</span>` : '';
+}
+// drop-down list of every part on back order (auto: any part with status Back order)
+function boPanel() {
+  if (!boOpen) return '';
+  const list = rows.filter(isBackOrder).sort((a, b) => (a.eta_date || '9999').localeCompare(b.eta_date || '9999') || diaryCmp(a, b));
+  const row = r => `<div class="borow" data-id="${r.id}">
+      <input type="checkbox" class="bochk" value="${r.id}" title="Tick when arrived">
+      <span class="pn">${esc(r.part_number || '—')}</span>
+      <span class="bod">${esc(r.description)}${r.qty != null && Number(r.qty) !== 1 ? ` <span class="q">×${esc(r.qty)}</span>` : ''}${r.customer || r.vehicle_reg ? `<small>${esc([r.vehicle_reg, r.customer].filter(Boolean).join(' · '))}</small>` : ''}</span>
+      <span class="bom"><small>Ordered</small>${r.ordered_date ? fmt(r.ordered_date) : '—'}</span>
+      <span class="bom ${r.eta_date ? (daysTo(r.eta_date) < 0 ? 'red' : daysTo(r.eta_date) <= 1 ? 'amber' : '') : ''}"><small>ETA</small>${r.eta_date ? `${fmt(r.eta_date)} · ${etaCount(r.eta_date)}` : 'not set'}</span>
+      <span class="bom"><small>WIP</small>${esc(r.order_ref || '—')}</span>
+      <span class="bom"><small>Order no</small><span class="dno">${r.diary_no ? '#' + esc(r.diary_no) : '—'}</span></span>
+    </div>`;
+  return `<div class="bopanel">
+    <div class="bohead"><b>⏳ Back orders · ${list.length} part${list.length === 1 ? '' : 's'}</b><span class="mut">soonest ETA first · tap a part to open it</span></div>
+    ${list.length ? list.map(row).join('') : '<div class="hint" style="margin:6px 2px">Nothing on back order.</div>'}
+    <div class="bofoot"><button type="button" class="btn pri hidden" data-boarrive>✓ Mark arrived</button><button type="button" class="btn" data-boadd>＋ Add back-order part</button></div>
+  </div>`;
 }
 // ---- page view: one diary day per screen, swipe / arrows to turn ----
 function renderPages(list) {
@@ -890,7 +936,7 @@ function renderPages(list) {
       <div class="ptitle"><b>${esc(h.label)}</b><span class="pg">${h.page}</span><small>${its.length} order${its.length === 1 ? '' : 's'}${parts > its.length ? ` · ${parts} parts` : ''}</small></div>
       <button class="pbtn" data-pg="${next || ''}" ${next ? '' : 'disabled'} title="Next page">›<small>${next ? lbl(next) : ''}</small></button>
     </div>
-    <div class="ptools"><span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button>${alertChips()}</div>
+    <div class="ptools"><span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button>${alertChips()}</div>${boPanel()}
     <div class="pbody ${pageAnim}">${body}</div>`;
 }
 function goPage(ds) {
@@ -960,6 +1006,7 @@ function refreshSuppliers() {
 // ---- reminders / notifications ----
 async function checkReminders() {
   const due = rows.filter(isRemDue);
+  notifyDueIn();
   // no banner – the red counts on the Overdue / Reminders due / Damaged tabs show the same thing
 
   $('bellBtn').classList.toggle('on', 'Notification' in window && Notification.permission === 'granted');
@@ -973,6 +1020,18 @@ async function checkReminders() {
     const body = fresh.slice(0, 5).map(r => `• ${r.description}${r.vehicle_reg ? ' (' + r.vehicle_reg + ')' : ''}${r.reminder_note ? ' – ' + r.reminder_note : ''}`).join('\n') + (fresh.length > 5 ? `\n+${fresh.length - 5} more` : '');
     await reg.showNotification(`Parts reminders: ${fresh.length} due`, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'po-reminders', data: {url: './?view=reminders'} });
     log.ids.push(...fresh.map(r => r.id)); ls.set('po_notified', log);
+  } catch (e) { console.warn(e); }
+}
+
+async function notifyDueIn() {
+  const list = rows.filter(isDueIn);
+  if (!list.length || !('Notification' in window) || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
+  const key = 'po_duein_' + today(); if (ls.get(key, false)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const body = list.slice(0, 5).map(r => `• ${r.part_number ? r.part_number + ' ' : ''}${r.description}${r.diary_no ? ' (#' + r.diary_no + ')' : ''}`).join('\n') + (list.length > 5 ? `\n+${list.length - 5} more` : '');
+    await reg.showNotification(`📦 ${list.length} part${list.length > 1 ? 's' : ''} due in today`, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: 'po-duein', data: { url: './?view=duein' } });
+    ls.set(key, true);
   } catch (e) { console.warn(e); }
 }
 
@@ -1069,6 +1128,7 @@ function addLine(container) {
   el.innerHTML = `<div class="pnwrap"><div class="pnbox"><input class="l-pn" placeholder="Part no" autocapitalize="characters" spellcheck="false"><div class="sug hidden"></div></div><div class="pnhint"></div></div>
     <input class="l-qty" type="number" step="any" inputmode="decimal" value="1" placeholder="Qty">
     <input class="l-desc" placeholder="Description *">
+    <input class="l-eta" type="number" min="0" step="1" inputmode="numeric" placeholder="ETA days" title="ETA in days">
     <input class="l-cost" type="number" step="0.01" inputmode="decimal" placeholder="€">
     <button type="button" class="icon l-x" title="Remove part">✕</button>`;
   container.appendChild(el);
@@ -1092,7 +1152,12 @@ function addCustBlock() {
   el.querySelector('.c-reg').focus();
 }
 function renumberBlocks() { document.querySelectorAll('#custBlocks .cblock .cbhead span').forEach((s, i) => s.textContent = `👤 Customer ${i + 2}`); }
-const linePart = el => ({ part_number: el.querySelector('.l-pn').value, qty: el.querySelector('.l-qty').value, description: el.querySelector('.l-desc').value, cost: el.querySelector('.l-cost').value });
+const linePart = el => {
+  const l = { part_number: el.querySelector('.l-pn').value, qty: el.querySelector('.l-qty').value, description: el.querySelector('.l-desc').value, cost: el.querySelector('.l-cost').value };
+  const d = el.querySelector('.l-eta').value;
+  if (d !== '') l.eta_date = addDays(+d, $('frm').elements.ordered_date.value || today()); // ETA days → date from order day
+  return l;
+};
 const realLine = l => l.part_number.trim() || l.description.trim();
 function readLines() {
   const out = [...document.querySelectorAll('#extraLines .line')].map(linePart).filter(realLine); // same customer as the top
@@ -1266,6 +1331,19 @@ function onDiaryTyped() {
   if (!d) return;
 }
 // date typed in → move status forward to match
+// ETA (days) ⇄ ETA date, counted from the order day (or today if not ordered yet)
+function etaBase() { return $('frm').elements.ordered_date.value || today(); }
+function syncEtaDays() {
+  const f = $('frm'), eta = f.elements.eta_date.value;
+  $('etaDays').value = eta ? Math.max(0, Math.round((new Date(eta + 'T12:00:00') - new Date(etaBase() + 'T12:00:00')) / 86400000)) : '';
+  $('etaHint').className = 'pnhint' + (eta ? ' ok' : ''); $('etaHint').textContent = eta ? `→ ${fmt(eta)} · ${etaCount(eta)}` : '';
+}
+function onEtaDays() {
+  const f = $('frm'), v = $('etaDays').value;
+  f.elements.eta_date.value = v === '' ? '' : addDays(+v, etaBase());
+  const eta = f.elements.eta_date.value;
+  $('etaHint').className = 'pnhint' + (eta ? ' ok' : ''); $('etaHint').textContent = eta ? `→ ${fmt(eta)} · ${etaCount(eta)}` : '';
+}
 function onDateTyped(field) {
   const f = $('frm'), s = f.elements.status.value, v = f.elements[field].value;
   if (!v) return;
@@ -1297,7 +1375,7 @@ function openEditor(r, copy, focus, group) {
   $('newCustBtn').classList.toggle('hidden', copy !== 'prefill');
   mainLk.reset(); $('fuNote').value = ''; setFuNext('');
   if (r?.part_number && catalog) { const keep = f.elements.description.value; mainLk.hint(r.part_number); if (keep) { f.elements.description.value = keep; mainLk.auto = ''; } }
-  toggleDmg(); toggleCloseDates(); showAdded(editing); diaryHint(); renderGroup();
+  toggleDmg(); toggleCloseDates(); showAdded(editing); diaryHint(); syncEtaDays(); renderGroup();
   $('delBtn').classList.toggle('hidden', !editing);
   $('dupBtn').classList.toggle('hidden', !editing);
   $('stamp').textContent = editing ? `Added ${fmt(r.created_at)} · last updated ${fmtDT(r.updated_at)}` : '';
@@ -1362,10 +1440,26 @@ window.addEventListener('resize', setHH); setHH();
 $('list').addEventListener('click', e => {
   const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
   if (e.target.closest('[data-backdiary]')) { e.stopImmediatePropagation(); goToday(); return; }
+  if (e.target.closest('[data-bo]')) { e.stopImmediatePropagation(); boOpen = !boOpen; render(); return; }
+  if (e.target.closest('[data-boadd]')) { e.stopImmediatePropagation(); openEditor(null); const f = $('frm'); f.elements.status.value = 'Back order'; onStatusChange(); return; }
+  if (e.target.closest('[data-boarrive]')) {
+    e.stopImmediatePropagation();
+    (async () => {
+      const ids = [...$('list').querySelectorAll('.bochk:checked')].map(c => +c.value); let n = 0;
+      for (const id of ids) if (await updateRow(latest(id), { status: 'Arrived' })) n++;
+      toast(`${n} part${n === 1 ? '' : 's'} marked arrived`);
+    })();
+    return;
+  }
+  if (e.target.classList.contains('bochk')) { e.stopImmediatePropagation(); return; }
+  const bor = e.target.closest('.borow'); if (bor) { e.stopImmediatePropagation(); const r = latest(+bor.dataset.id); if (r) openEditor(r); return; }
   const gv = e.target.closest('[data-goview]'); if (gv) { e.stopImmediatePropagation(); state.view = gv.dataset.goview; saveState(); render(); window.scrollTo(0, 0); return; }
   const md = e.target.closest('[data-mode]'); if (md) { e.stopImmediatePropagation(); state.mode = md.dataset.mode; saveState(); render(); window.scrollTo(0, 0); }
 }, true);
-$('list').addEventListener('change', e => { if (e.target.id === 'pgJump' && e.target.value) goPage(e.target.value); });
+$('list').addEventListener('change', e => {
+  if (e.target.id === 'pgJump' && e.target.value) goPage(e.target.value);
+  if (e.target.classList.contains('bochk')) { const n = $('list').querySelectorAll('.bochk:checked').length, b = $('list').querySelector('[data-boarrive]'); b.classList.toggle('hidden', !n); b.textContent = `✓ Mark ${n} arrived`; }
+});
 let tx = null, ty = null;
 $('list').addEventListener('touchstart', e => { if (state.mode !== 'pages' || e.touches.length > 1 || e.target.closest('input,textarea,select')) { tx = null; return; } tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
 $('list').addEventListener('touchend', e => {
@@ -1468,6 +1562,9 @@ $('statusSel').addEventListener('change', onStatusChange);
 $('diaryIn').addEventListener('input', () => { diaryAuto = false; onDiaryTyped(); });
 // keep an untouched auto diary no in step with the clock while a new order is open
 setInterval(() => { if (diaryAuto && $('dlg').open && !editing) { $('diaryIn').value = diaryNo(); diaryHint(); } }, 15000);
+$('etaDays').addEventListener('input', onEtaDays);
+$('frm').elements.eta_date.addEventListener('change', syncEtaDays);
+$('frm').elements.ordered_date.addEventListener('change', () => { if ($('etaDays').value !== '') onEtaDays(); });
 $('diaryNow').onclick = () => { $('frm').elements.diary_no.value = diaryNo(); diaryHint(); };
 ['ordered_date','received_date','collected_date'].forEach(k => $('frm').elements[k].addEventListener('change', () => onDateTyped(k)));
 ['returned_date','cancelled_date'].forEach(k => $('frm').elements[k].addEventListener('change', toggleCloseDates));
