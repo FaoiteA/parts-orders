@@ -122,6 +122,10 @@ a.tel{color:var(--acc);text-decoration:none;white-space:nowrap}
 .borow .q{color:var(--acc);font-weight:600}
 .bofoot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:700px){.borow{grid-template-columns:28px 1fr 1fr;row-gap:6px;column-gap:10px}.borow .bochk{grid-column:1;grid-row:1/5;align-self:start;margin-top:2px}.borow .pn{grid-column:2/4;grid-row:1}.borow .bod{grid-column:2/4;grid-row:2;font-weight:600}.borow .bom{white-space:nowrap}}
+.pstat{appearance:none;-webkit-appearance:none;width:auto;flex:none;font-size:11px;padding:3px 20px 3px 9px;border-radius:20px;background:var(--card2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b9bab'/%3E%3C/svg%3E") no-repeat right 7px center;border:1px solid var(--line);cursor:pointer;font-weight:500}
+.pstat:hover{border-color:var(--acc)}
+.pstat.s0{color:var(--purple)}.pstat.s1{color:var(--blue)}.pstat.s2{color:var(--red)}.pstat.s3{color:var(--green)}.pstat.s4,.pstat.s5,.pstat.s6{color:var(--mut)}
+.pstat option{color:var(--text);background:var(--card)}
 .peta{font-size:11px;color:var(--mut);white-space:nowrap}
 .ptools .achip.bk{background:var(--card);border-color:var(--line);color:var(--text)}
 .ptools .achip.bk.due{background:#13261b;border-color:#25603a;color:#86efac}
@@ -826,7 +830,7 @@ function card(r) {
   if (rd) qa.push(`<button data-act="remdone">✓ Reminder done</button><button data-act="snooze">Snooze 1 day</button>`);
   const tag = r.damaged ? `<div><span class="dtag ${dmg ? '' : 'res'}">DAMAGED · ${esc(r.damage_status || 'Reported')}${r.damage_ref ? ' · ' + esc(r.damage_ref) : ''}</span></div>` : '';
   return `<article class="card st${si} ${od ? 'od' : ''} ${dmg ? 'dmg' : ''}" data-id="${r.id}">
-    <div class="row1"><span class="desc">${esc(r.description)}</span><span class="pill s${si}">${esc(r.status)}</span></div>
+    <div class="row1"><span class="desc">${esc(r.description)}</span>${statusPick(r)}</div>
     ${line0 ? `<div class="meta">${line0}</div>` : ''}
     ${line1 ? `<div class="meta">${line1}</div>` : ''}
     ${line2 ? `<div class="meta">${line2}</div>` : ''}
@@ -836,6 +840,12 @@ function card(r) {
   </article>`;
 }
 
+// status badge you can tap to change, right on the card
+function statusPick(r) {
+  const si = STATUSES.indexOf(r.status);
+  const opts = STATUSES.map(st => `<option value="${st}" ${st === r.status ? 'selected' : ''}>${st === 'Collected' ? 'Collected / fitted' : st}</option>`).join('');
+  return `<select class="pstat s${si}" data-sid="${r.id}" title="Change status">${opts}${r.damaged ? '' : '<option value="__damage">⚠ Damaged…</option>'}</select>`;
+}
 // One card for a whole order (2+ parts showing)
 function orderCard(it) {
   const rs = it.rows.slice().sort((a, b) => a.id - b.id), r0 = rs[0];
@@ -869,7 +879,7 @@ function orderCard(it) {
   ].filter(Boolean).join(' · ') || '<span class="mut">No customer</span>';
   const lineHtml = s => { const si = STATUSES.indexOf(s.status); return `<div class="pline" data-id="${s.id}">
       <span class="pn">${esc(s.part_number || '—')}</span><span class="sd">${esc(s.description)}${s.qty != null && Number(s.qty) !== 1 ? ` <span class="q">×${esc(s.qty)}</span>` : ''}</span>
-      ${s.eta_date && OPEN.includes(s.status) ? `<span class="peta ${daysTo(s.eta_date) < 0 ? 'red' : daysTo(s.eta_date) <= 1 ? 'amber' : ''}">${etaCount(s.eta_date)}</span>` : ''}${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}<span class="pill s${si}">${esc(s.status)}</span></div>`; };
+      ${s.eta_date && OPEN.includes(s.status) ? `<span class="peta ${daysTo(s.eta_date) < 0 ? 'red' : daysTo(s.eta_date) <= 1 ? 'amber' : ''}">${etaCount(s.eta_date)}</span>` : ''}${s.damaged ? `<span class="dtag ${isDamagedOpen(s) ? '' : 'res'}">DMG</span>` : ''}${statusPick(s)}</div>`; };
   const lines = multi
     ? custs.map(k => { const grp = rs.filter(s => ckey(s) === k); return `<div class="pcust">${custLine(grp[0])}</div>` + grp.map(lineHtml).join(''); }).join('')
     : rs.map(lineHtml).join('');
@@ -1581,7 +1591,16 @@ $('list').addEventListener('click', e => {
   const gv = e.target.closest('[data-goview]'); if (gv) { e.stopImmediatePropagation(); state.view = gv.dataset.goview; saveState(); render(); window.scrollTo(0, 0); return; }
   const md = e.target.closest('[data-mode]'); if (md) { e.stopImmediatePropagation(); state.mode = md.dataset.mode; saveState(); render(); window.scrollTo(0, 0); }
 }, true);
-$('list').addEventListener('change', e => {
+$('list').addEventListener('change', async e => {
+  const ps = e.target.closest('select.pstat');
+  if (ps) {
+    const r = latest(+ps.dataset.sid); if (!r) return;
+    if (ps.value === '__damage') { ps.value = r.status; return openEditor(r, false, 'damage'); }
+    const st = ps.value; ps.disabled = true;
+    if (await updateRow(r, { status: st })) toast(`${r.part_number || r.description} → ${st === 'Collected' ? 'Collected / fitted' : st}`);
+    else ps.value = r.status;
+    return;
+  }
   if (e.target.id === 'pgJump' && e.target.value) goPage(e.target.value);
   if (e.target.classList.contains('bochk')) { const n = $('list').querySelectorAll('.bochk:checked').length, b = $('list').querySelector('[data-boarrive]'); b.classList.toggle('hidden', !n); b.textContent = `✓ Mark ${n} arrived`; }
 });
@@ -1615,6 +1634,7 @@ $('bellBtn').onclick = async () => {
 $('list').addEventListener('click', async e => {
   if (e.target.closest('[data-showall]')) { state.view = 'all'; saveState(); render(); return; }
   if (e.target.closest('a.tel')) return; // let the phone link dial
+  if (e.target.closest('select.pstat')) return; // status dropdown handles itself
   const c = e.target.closest('.card'); if (!c) return;
   const btn = e.target.closest('[data-act]'), act = btn?.dataset.act;
   const pl = e.target.closest('.pline');
