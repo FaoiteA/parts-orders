@@ -448,6 +448,20 @@ function diaryNo(d = new Date()) {
   return String(day) + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
 }
 // diary no → date it was ordered (assumes this year, or last year if that would be in the future)
+// next minute along: 3101034 → 3101035 (rolls over the hour/day)
+function bumpDiary(no) {
+  let day = +no.slice(0, -4), hh = +no.slice(-4, -2), mm = +no.slice(-2) + 1;
+  if (mm > 59) { mm = 0; hh++; } if (hh > 23) { hh = 0; day++; }
+  return String(day) + String(hh).padStart(2, '0') + String(mm).padStart(2, '0');
+}
+// a diary no not already used by another order, so separate orders never merge
+function freeDiary(no) { const used = new Set(rows.concat(binRows).map(r => String(r.diary_no || '').trim())); let n = 0; while (used.has(no) && n++ < 1440) no = bumpDiary(no); return no; }
+// diary no for another day: that day's number + the current time
+function diaryNoFor(ds) {
+  const d = new Date(ds + 'T12:00:00'), now = new Date();
+  d.setHours(now.getHours(), now.getMinutes());
+  return diaryNo(d);
+}
 function diaryToDate(no) {
   const s = String(no || '').trim();
   if (!/^\d{5,7}$/.test(s)) return null;
@@ -455,7 +469,7 @@ function diaryToDate(no) {
   if (day < 1 || day > 366 || hh > 23 || mm > 59) return null;
   let y = new Date().getFullYear();
   let d = new Date(y, 0, day, 12);
-  if (d > new Date()) d = new Date(--y, 0, day, 12);
+  if (d.toLocaleDateString('en-CA') > new Date().toLocaleDateString('en-CA')) d = new Date(--y, 0, day, 12); // a future day = last year's diary
   return { date: d.toLocaleDateString('en-CA'), time: s.slice(-4, -2) + ':' + s.slice(-2) };
 }
 const STATUS_DATES = {
@@ -569,6 +583,7 @@ let editing = null;
 let loading = false;
 let catalog = null, catIdx = null;
 let mainLk = null;
+let formDay = null; // the day a new order is being entered for (today, or the diary page you're on)
 let diaryAuto = false; // diary no was auto-filled on a new order and not touched → re-stamp at save time
 let newGroup = null;
 let gCount = new Map();
@@ -735,8 +750,13 @@ function matchFilters(r) {
   }
   return true;
 }
+// which diary page an order is on: the day in its diary number (else ordered date, else the day it was added)
+function orderDay(r) {
+  const d = r.diary_no && diaryToDate(r.diary_no);
+  return d ? d.date : (r.ordered_date || localDay(r.created_at) || '');
+}
 function diaryCmp(a, b) {
-  const x = a.ordered_date || '', y = b.ordered_date || '';
+  const x = orderDay(a), y = orderDay(b);
   if (x !== y) { if (!x) return -1; if (!y) return 1; return y.localeCompare(x); }
   const dx = +(a.diary_no || 0), dy = +(b.diary_no || 0);
   if (dx !== dy) return dy - dx;
@@ -959,7 +979,7 @@ function renderPages(list) {
   const items = buildItems(list.slice().sort(diaryCmp));
   const byDay = new Map(), todo = [];
   for (const it of items) {
-    const ds = it.rows[0].ordered_date;
+    const ds = orderDay(it.rows[0]);
     if (!ds) { todo.push(it); continue; }
     if (!byDay.has(ds)) byDay.set(ds, []);
     byDay.get(ds).push(it);
@@ -1030,7 +1050,7 @@ function withHeadings(list) {
   if (!DATE_SORTS.includes(f0)) return items.map(itemHtml).join('');
   const f = f0 === 'diary' ? 'ordered_date' : f0, diary = f0 === 'diary' || f0 === 'ordered_date';
   const days = [];
-  for (const it of items) { const ds = localDay(it.rows[0][f]); if (!days.length || days[days.length - 1].ds !== ds) days.push({ ds, items: [] }); days[days.length - 1].items.push(it); }
+  for (const it of items) { const ds = f0 === 'diary' ? orderDay(it.rows[0]) : localDay(it.rows[0][f]); if (!days.length || days[days.length - 1].ds !== ds) days.push({ ds, items: [] }); days[days.length - 1].items.push(it); }
   return days.map(g => {
     const h = dayHead(g.ds, diary), parts = g.items.reduce((n, it) => n + it.rows.length, 0), orders = g.items.length;
     return `<h3 class="grp day"><span>${esc(h.label)}</span>${h.page ? `<span class="pg">${h.page}</span>` : ''}<b>${orders} order${orders > 1 ? 's' : ''}${parts > orders ? ` · ${parts} parts` : ''}</b></h3>` + g.items.map(itemHtml).join('');
@@ -1251,7 +1271,7 @@ function renumberBlocks() { document.querySelectorAll('#custBlocks .cblock .cbhe
 const linePart = el => {
   const l = { part_number: el.querySelector('.l-pn').value, qty: el.querySelector('.l-qty').value, description: el.querySelector('.l-desc').value, cost: el.querySelector('.l-cost').value };
   const d = el.querySelector('.l-eta').value;
-  if (d !== '') l.eta_date = addDays(+d, $('frm').elements.ordered_date.value || today()); // ETA days → date from order day
+  if (d !== '') l.eta_date = addDays(+d, etaBase()); // ETA days → date from order day
   return l;
 };
 const realLine = l => l.part_number.trim() || l.description.trim();
@@ -1280,7 +1300,7 @@ async function saveNew() {
   const lines = readLines();
   if (lines.some(l => !l.description.trim())) { toast('Every part needs a description', true); return null; }
   if (data.ordered_by) ls.set('po_who', data.ordered_by.trim());
-  if (diaryAuto && data.diary_no) { data.diary_no = diaryNo(); if (data.ordered_date) data.ordered_date = today(); }
+  if (diaryAuto && data.diary_no && !newGroup) { data.diary_no = freeDiary(diaryNo()); if (data.ordered_date) data.ordered_date = today(); }
   const group = newGroup || (lines.length ? uuid() : null);
   const blank = { reminder_date: null, reminder_note: null, reminder_done: false, damaged: false, damage_status: null, damage_ref: null, damaged_date: null, damage_notes: null };
   const recs = [{ ...data, order_group: group }, ...lines.map(l => ({ ...data, ...blank, ...l, order_group: group }))];
@@ -1409,8 +1429,9 @@ function showAdded(r) { $('addedOut').value = r?.created_at ? fmtDT(r.created_at
 // status picked in the form → fill matching date(s) straight away
 function onStatusChange() {
   const f = $('frm'), s = f.elements.status.value;
-  for (const k of STATUS_DATES[s] || []) if (!f.elements[k].value) f.elements[k].value = today();
-  if ((s === 'Ordered' || s === 'Back order') && !f.elements.diary_no.value && (!f.elements.ordered_date.value || f.elements.ordered_date.value === today())) { f.elements.diary_no.value = diaryNo(); diaryHint(); }
+  const day = (!editing && formDay) || today();
+  for (const k of STATUS_DATES[s] || []) if (!f.elements[k].value) f.elements[k].value = day;
+  if ((s === 'Ordered' || s === 'Back order') && !f.elements.diary_no.value && (!f.elements.ordered_date.value || f.elements.ordered_date.value === day)) { f.elements.diary_no.value = day === today() ? diaryNo() : diaryNoFor(day); diaryHint(); }
   toggleCloseDates();
 }
 function diaryHint() {
@@ -1428,7 +1449,7 @@ function onDiaryTyped() {
 }
 // date typed in → move status forward to match
 // ETA (days) ⇄ ETA date, counted from the order day (or today if not ordered yet)
-function etaBase() { return $('frm').elements.ordered_date.value || today(); }
+function etaBase() { return $('frm').elements.ordered_date.value || (!editing && formDay) || today(); }
 function syncEtaDays() {
   const f = $('frm'), eta = f.elements.eta_date.value;
   $('etaDays').value = eta ? Math.max(0, Math.round((new Date(eta + 'T12:00:00') - new Date(etaBase() + 'T12:00:00')) / 86400000)) : '';
@@ -1461,10 +1482,17 @@ function openEditor(r, copy, focus, group) {
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
   }
   diaryAuto = false;
+  formDay = today();
   if (!r || copy === true) {
-    // new order: only the diary no is filled (from the clock); status To order until changed
+    // new order: only the diary no is filled; status To order until changed
     f.elements.status.value = 'To order';
-    f.elements.diary_no.value = diaryNo(); diaryAuto = true;
+    const past = state.mode === 'pages' && pageDay && pageDay !== today() && !ACTION_VIEWS.includes(state.view);
+    if (past) {
+      // entering it on an earlier diary page: that day's number + the time now (type over the time if you know it)
+      formDay = pageDay;
+      f.elements.diary_no.value = freeDiary(diaryNoFor(pageDay));
+      $('dlgTitle').textContent = 'New order – ' + new Date(pageDay + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+    } else { f.elements.diary_no.value = freeDiary(diaryNo()); diaryAuto = true; }
   }
   if (!editing && (!r || copy === 'prefill')) f.elements.qty.value = 1; // no names auto-filled
   $('extraLines').innerHTML = ''; $('custBlocks').innerHTML = ''; updLinesHint();
@@ -1658,11 +1686,11 @@ $('dmgChk').addEventListener('change', toggleDmg);
 $('statusSel').addEventListener('change', onStatusChange);
 $('diaryIn').addEventListener('input', () => { diaryAuto = false; onDiaryTyped(); });
 // keep an untouched auto diary no in step with the clock while a new order is open
-setInterval(() => { if (diaryAuto && $('dlg').open && !editing) { $('diaryIn').value = diaryNo(); diaryHint(); } }, 15000);
+setInterval(() => { if (diaryAuto && $('dlg').open && !editing) { $('diaryIn').value = freeDiary(diaryNo()); diaryHint(); } }, 15000);
 $('etaDays').addEventListener('input', onEtaDays);
 $('frm').elements.eta_date.addEventListener('change', syncEtaDays);
 $('frm').elements.ordered_date.addEventListener('change', () => { if ($('etaDays').value !== '') onEtaDays(); });
-$('diaryNow').onclick = () => { $('frm').elements.diary_no.value = diaryNo(); diaryHint(); };
+$('diaryNow').onclick = () => { const v = diaryNo(); $('frm').elements.diary_no.value = editing ? v : freeDiary(v); diaryHint(); };
 ['ordered_date','received_date','collected_date'].forEach(k => $('frm').elements[k].addEventListener('change', () => onDateTyped(k)));
 ['returned_date','cancelled_date'].forEach(k => $('frm').elements[k].addEventListener('change', toggleCloseDates));
 
