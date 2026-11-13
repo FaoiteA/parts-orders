@@ -1,6 +1,7 @@
-const CACHE = 'parts-orders-v2';
+const CACHE = 'parts-orders-v3';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
-const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+// pinned version – must match the <script> tag in index.html
+const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).then(() => c.add(CDN).catch(() => {}))));
@@ -23,7 +24,7 @@ self.addEventListener('fetch', e => {
       .catch(() => caches.match(req, {ignoreSearch: true}).then(r => r || caches.match('./index.html'))));
     return;
   }
-  // CDN library: cache first
+  // CDN library: cache first (the URL is pinned to an exact version, so it never changes)
   if (url.hostname === 'cdn.jsdelivr.net') {
     e.respondWith(caches.match(req).then(r => r || fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })));
   }
