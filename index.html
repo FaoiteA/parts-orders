@@ -161,6 +161,36 @@ a.sms{color:#86efac;text-decoration:none;white-space:nowrap;margin-left:6px}
 @keyframes slL{from{transform:translateX(48px);opacity:0}to{transform:none;opacity:1}}
 @keyframes slR{from{transform:translateX(-48px);opacity:0}to{transform:none;opacity:1}}
 .ocard .ohead{font-weight:600}
+/* day page = timeline: one order per row, time on the left */
+.pbody.tl{display:block!important}
+.trow{display:grid;grid-template-columns:86px 1fr;gap:0;align-items:stretch}
+.ttime{text-align:right;padding:12px 12px 0 0;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.ttime b{font-family:ui-monospace,Consolas,monospace;font-size:19px;color:var(--acc);line-height:1}
+.ttime small{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--mut)}
+.tbody{border-left:2px solid var(--line);padding:0 0 10px 14px;position:relative;min-width:0}
+.tbody::before{content:'';position:absolute;left:-6px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--acc)}
+.tbody>.card{margin-bottom:0}
+@media(max-width:600px){
+  .trow{display:block}
+  .ttime{flex-direction:row;align-items:baseline;gap:8px;padding:8px 0 4px;text-align:left}
+  .ttime b{font-size:15px}
+  .tbody{border-left:none;padding:0 0 4px}
+  .tbody::before{display:none}
+  .pline .pstat,.row1 .pstat{max-width:104px}
+  .pline .pn{max-width:78px}
+}
+@media(min-width:1000px){
+  /* multi-part orders: parts in two columns */
+  .tbody .ocard .plines{display:grid;grid-template-columns:1fr 1fr}
+  .tbody .ocard .pline{border-bottom:1px solid var(--line)}
+  .tbody .ocard .pline:nth-child(odd of .pline){border-right:1px solid var(--line)}
+  .tbody .ocard .pcust{grid-column:1/-1}
+  /* single parts: one compact line */
+  .tbody .card:not(.ocard){display:flex;flex-wrap:wrap;align-items:center;column-gap:18px;row-gap:4px;padding:8px 12px}
+  .tbody .card:not(.ocard) .row1{flex:1 1 100%}
+  .tbody .card:not(.ocard) .meta,.tbody .card:not(.ocard) .dates,.tbody .card:not(.ocard) .qa{margin-top:0}
+  .tbody .card:not(.ocard) .qa{margin-left:auto}
+}
 .ohead .mut{color:var(--mut)}
 .osum{font-size:12px;color:var(--mut);margin-top:4px}
 .plines{margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -1107,6 +1137,12 @@ function boPanel() {
     <div class="bofoot"><button type="button" class="btn pri hidden" data-boarrive>✓ Mark arrived</button><button type="button" class="btn" data-boadd>＋ Add back-order part</button></div>
   </div>`;
 }
+// one order per row with its diary time down the left, like the paper diary
+function timeRow(it) {
+  const no = String(it.rows[0].diary_no || '').trim();
+  const tm = /^\d{5,7}$/.test(no) ? no.slice(-4, -2) + ':' + no.slice(-2) : '—';
+  return `<div class="trow"><div class="ttime"><b>${tm}</b>${no ? `<small>#${esc(no)}</small>` : ''}</div><div class="tbody">${itemHtml(it)}</div></div>`;
+}
 // ---- page view: one diary day per screen, swipe / arrows to turn ----
 function renderPages(list) {
   const t = today();
@@ -1124,15 +1160,16 @@ function renderPages(list) {
   const its = byDay.get(pageDay) || [];
   const h = dayHead(pageDay, true), parts = its.reduce((n, it) => n + it.rows.length, 0);
   const lbl = ds => new Date(ds + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
-  let body = its.length ? its.map(itemHtml).join('') : `<div class="empty">No orders on this page${pageDay === t ? ' yet – tap ＋ to add one' : ''}.</div>`;
-  if (pageDay === t && todo.length) body += `<h3 class="grp">Not ordered yet<b>${todo.length}</b></h3>` + todo.map(itemHtml).join('');
+  const dayItems = state.dayOrder === 'old' ? its.slice().reverse() : its; // diary order (oldest first) or newest first
+  let body = its.length ? dayItems.map(timeRow).join('') : `<div class="empty">No orders on this page${pageDay === t ? ' yet – tap ＋ to add one' : ''}.</div>`;
+  if (pageDay === t && todo.length) body += `<h3 class="grp">Not ordered yet<b>${todo.length}</b></h3>` + todo.map(timeRow).join('');
   return `<div class="pnav">
       <button class="pbtn" data-pg="${prev || ''}" ${prev ? '' : 'disabled'} title="Previous page">‹<small>${prev ? lbl(prev) : ''}</small></button>
       <div class="ptitle"><b>${esc(h.label)}</b><span class="pg">${h.page}</span><small>${its.length} order${its.length === 1 ? '' : 's'}${parts > its.length ? ` · ${parts} parts` : ''}</small></div>
       <button class="pbtn" data-pg="${next || ''}" ${next ? '' : 'disabled'} title="Next page">›<small>${next ? lbl(next) : ''}</small></button>
     </div>
-    <div class="ptools"><span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button>${alertChips()}</div>${boPanel()}
-    <div class="pbody ${pageAnim}">${body}</div>`;
+    <div class="ptools"><span class="pjump">📅 <input type="date" id="pgJump" value="${pageDay}" aria-label="Go to day"></span><button data-mode="list">☰ List view</button><button data-dayorder title="Change the order of the page">${state.dayOrder === 'old' ? '↑ Oldest first' : '↓ Newest first'}</button>${alertChips()}</div>${boPanel()}
+    <div class="pbody tl ${pageAnim}">${body}</div>`;
 }
 function goPage(ds) {
   if (!ds || ds === pageDay) return;
@@ -1702,6 +1739,7 @@ window.addEventListener('resize', setHH); setHH();
 $('list').addEventListener('click', e => {
   const pg = e.target.closest('[data-pg]'); if (pg && !pg.disabled) { e.stopImmediatePropagation(); goPage(pg.dataset.pg); return; }
   if (e.target.closest('[data-backdiary]')) { e.stopImmediatePropagation(); goToday(); return; }
+  if (e.target.closest('[data-dayorder]')) { e.stopImmediatePropagation(); state.dayOrder = state.dayOrder === 'old' ? 'new' : 'old'; saveState(); render(); return; }
   if (e.target.closest('[data-backup]')) { e.stopImmediatePropagation(); downloadBackup(true); return; }
   if (e.target.closest('[data-goodsin]')) { e.stopImmediatePropagation(); openGoodsIn(); return; }
   // 💬 Text: let the phone open Messages, and tick those parts as customer told
