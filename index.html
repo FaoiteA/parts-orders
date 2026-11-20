@@ -1070,6 +1070,7 @@ function buildItems(list) {
 const itemHtml = it => it.rows.length > 1 ? orderCard(it) : card(it.rows[0]);
 
 function render() {
+  rowsVer++;
   gCount = new Map(); for (const r of rows) { const k = gkey(r); if (k) gCount.set(k, (gCount.get(k) || 0) + 1); }
   for (const v of Object.keys(VIEWS)) { const el = $('c_' + v); if (el) { const n = rows.filter(VIEWS[v]).length; el.textContent = n ? ' ' + n : ''; } }
   document.querySelectorAll('#views button').forEach(b => b.classList.toggle('on', b.dataset.v === state.view));
@@ -1369,15 +1370,53 @@ async function importCatalog(file) {
 }
 
 // Part-number lookup, reusable for the main part and each extra line
-function makeLookup(pn, sug, hint, desc) {
-  const lk = { auto: '' };
+// ---- remembered parts: anything typed in before is offered again (built from existing orders, so it's shared) ----
+let rowsVer = 0, learned = null;
+function learnedIdx() {
+  const sig = rowsVer + ':' + rows.length + ':' + binRows.length;
+  if (learned && learned.sig === sig) return learned;
+  const map = new Map();
+  for (const r of rows.concat(binRows)) {
+    const code = String(r.part_number || '').trim(), d = String(r.description || '').trim();
+    if (!code || !d || /^NOW\s/i.test(d)) continue;
+    const k = catKey(code); if (!k) continue;
+    const when = r.updated_at || r.created_at || '';
+    const e = map.get(k);
+    if (!e) map.set(k, { code, desc: d, cost: r.cost ?? null, n: 1, when });
+    else { e.n++; if (when > e.when) { e.code = code; e.desc = d; e.when = when; if (r.cost != null) e.cost = r.cost; } else if (e.cost == null && r.cost != null) e.cost = r.cost; }
+  }
+  learned = { sig, map, keys: [...map.keys()].sort() };
+  return learned;
+}
+function learnedSuggest(val, limit) {
+  const k = catKey(val); if (!k || k.length < 3) return [];
+  const L = learnedIdx(); let lo = 0, hi = L.keys.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (L.keys[m] < k) lo = m + 1; else hi = m; }
+  const out = []; for (let i = lo; i < L.keys.length && out.length < limit && L.keys[i].startsWith(k); i++) out.push(L.map.get(L.keys[i]));
+  return out;
+}
+function makeLookup(pn, sug, hint, desc, cost) {
+  const lk = { auto: '', autoCost: '' };
   lk.hint = val => {
     hint.className = 'pnhint'; hint.innerHTML = '';
     if (lk.auto && desc.value === lk.auto) { desc.value = ''; lk.auto = ''; } // drop description auto-filled from a previous part no
+    if (cost && lk.autoCost && cost.value === lk.autoCost) { cost.value = ''; lk.autoCost = ''; }
     if (!val.trim()) return;
-    if (!catalog) { hint.textContent = 'No price file loaded (📄)'; return; }
-    const hits = catLookup(catalog, catIdx, val);
-    if (!hits.length) { hint.className = 'pnhint warn'; hint.textContent = 'Not in price file'; return; }
+    const hits = catalog ? catLookup(catalog, catIdx, val) : [];
+    if (!hits.length) {
+      // not in the price file – has it been entered on an order before?
+      const e = learnedIdx().map.get(catKey(val));
+      if (e) {
+        hint.className = 'pnhint ok';
+        hint.innerHTML = `✓ ${esc(e.desc)} · <span class="mut">entered before${e.n > 1 ? ` (${e.n}×)` : ''}</span>${e.cost != null ? ` · €${Number(e.cost).toFixed(2)}` : ''}`;
+        if (!desc.value.trim()) desc.value = lk.auto = e.desc;
+        if (cost && !cost.value && e.cost != null) cost.value = lk.autoCost = String(e.cost);
+        return;
+      }
+      hint.className = 'pnhint warn';
+      hint.textContent = (catalog ? 'Not in price file' : 'No price file loaded') + ' – new part, it’ll be remembered once saved';
+      return;
+    }
     const it = hits[0], sup = supersededBy(it[1]);
     if (sup) { hint.className = 'pnhint warn'; hint.innerHTML = `Superseded → <b>${esc(sup)}</b><button type="button" data-use="${esc(sup)}">Use ${esc(sup)}</button>`; return; }
     hint.className = 'pnhint ok';
@@ -1385,12 +1424,17 @@ function makeLookup(pn, sug, hint, desc) {
     if (!desc.value.trim()) desc.value = lk.auto = it[1];
   };
   lk.suggest = val => {
-    const list = catalog ? catSuggest(catalog, catIdx, val, 8) : [];
-    if (!list.length || (list.length === 1 && catKey(list[0][0]) === catKey(val))) { sug.classList.add('hidden'); return; }
-    sug.innerHTML = list.map(i => `<div data-code="${esc(i[0])}"><span class="c">${esc(i[0])}</span>${esc(i[1])}${i[2] ? `<span class="l">${esc(i[2])}</span>` : ''}</div>`).join('');
+    // price-file matches first, then parts entered on earlier orders that aren't in the price file
+    const cat = catalog ? catSuggest(catalog, catIdx, val, 8) : [];
+    const seen = new Set(cat.map(i => catKey(i[0])));
+    const mine = learnedSuggest(val, 8).filter(e => !seen.has(catKey(e.code))).slice(0, Math.max(0, 8 - cat.length));
+    const total = cat.length + mine.length;
+    if (!total || (total === 1 && catKey((cat[0] || [mine[0].code])[0]) === catKey(val))) { sug.classList.add('hidden'); return; }
+    sug.innerHTML = cat.map(i => `<div data-code="${esc(i[0])}"><span class="c">${esc(i[0])}</span>${esc(i[1])}${i[2] ? `<span class="l">${esc(i[2])}</span>` : ''}</div>`).join('') +
+      mine.map(e => `<div data-code="${esc(e.code)}"><span class="c">${esc(e.code)}</span>${esc(e.desc)}<span class="l">entered before</span></div>`).join('');
     sug.classList.remove('hidden');
   };
-  lk.reset = () => { lk.auto = ''; sug.classList.add('hidden'); hint.className = 'pnhint'; hint.innerHTML = ''; };
+  lk.reset = () => { lk.auto = ''; lk.autoCost = ''; sug.classList.add('hidden'); hint.className = 'pnhint'; hint.innerHTML = ''; };
   let t;
   pn.addEventListener('input', e => { clearTimeout(t); const v = e.target.value; t = setTimeout(() => { lk.suggest(v); lk.hint(v); }, 150); });
   pn.addEventListener('blur', () => setTimeout(() => sug.classList.add('hidden'), 200));
@@ -1399,6 +1443,7 @@ function makeLookup(pn, sug, hint, desc) {
   sug.addEventListener('click', e => { const d = e.target.closest('[data-code]'); if (!d) return; pn.value = d.dataset.code; sug.classList.add('hidden'); lk.hint(d.dataset.code); });
   hint.addEventListener('click', e => { const b = e.target.closest('[data-use]'); if (!b) return; pn.value = b.dataset.use; if (desc.value.startsWith('NOW ')) desc.value = ''; lk.hint(b.dataset.use); });
   desc.addEventListener('input', () => { lk.auto = ''; });
+  if (cost) cost.addEventListener('input', () => { lk.autoCost = ''; });
   return lk;
 }
 
@@ -1423,7 +1468,7 @@ function addLine(container) {
     <input class="l-cost" type="number" step="0.01" inputmode="decimal" placeholder="€">
     <button type="button" class="icon l-x" title="Remove part">✕</button>`;
   container.appendChild(el);
-  makeLookup(el.querySelector('.l-pn'), el.querySelector('.sug'), el.querySelector('.pnhint'), el.querySelector('.l-desc'));
+  makeLookup(el.querySelector('.l-pn'), el.querySelector('.sug'), el.querySelector('.pnhint'), el.querySelector('.l-desc'), el.querySelector('.l-cost'));
   el.querySelector('.l-x').onclick = () => { el.remove(); updLinesHint(); };
   updLinesHint();
   el.querySelector('.l-pn').focus();
@@ -1673,7 +1718,7 @@ function openEditor(r, copy, focus, group) {
   $('extraLines').innerHTML = ''; $('custBlocks').innerHTML = ''; updLinesHint();
   $('newCustBtn').classList.toggle('hidden', copy !== 'prefill');
   mainLk.reset(); $('fuNote').value = ''; setFuNext('');
-  if (r?.part_number && catalog) { const keep = f.elements.description.value; mainLk.hint(r.part_number); if (keep) { f.elements.description.value = keep; mainLk.auto = ''; } }
+  if (r?.part_number) { const keep = f.elements.description.value, keepC = f.elements.cost.value; mainLk.hint(r.part_number); if (keep) { f.elements.description.value = keep; mainLk.auto = ''; } f.elements.cost.value = keepC; mainLk.autoCost = ''; } // show the hint, never change what's saved
   toggleDmg(); toggleCloseDates(); showAdded(editing); diaryHint(); syncEtaDays(); renderGroup();
   $('delBtn').classList.toggle('hidden', !editing);
   $('dupBtn').classList.toggle('hidden', !editing);
@@ -1837,7 +1882,7 @@ async function addPartTo(r, cust) {
 }
 
 // part number lookup + extra lines
-mainLk = makeLookup($('pnIn'), $('pnSug'), $('pnHint'), $('descIn'));
+mainLk = makeLookup($('pnIn'), $('pnSug'), $('pnHint'), $('descIn'), $('frm').elements.cost);
 $('addLineBtn').onclick = () => addLine($('extraLines'));
 $('addCustBtn').onclick = addCustBlock;
 $('grpBox').addEventListener('click', async e => {
